@@ -13,6 +13,8 @@ publication_name: 'gohan_dao'
 - flatMap
 - 超モダン個人開発スタック
 - カスタムユーティリティタイプス
+- firebase(型)
+- firebase-admin
 
 # product
 

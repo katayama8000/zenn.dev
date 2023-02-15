@@ -1,10 +1,10 @@
 ---
-title: "idea"
-emoji: "🦍"
-type: "tech" # tech: 技術記事 / idea: アイデア
+title: 'idea'
+emoji: '🦍'
+type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: []
 published: false
-publication_name: "gohan_dao"
+publication_name: 'gohan_dao'
 ---
 
 # article
@@ -12,6 +12,7 @@ publication_name: "gohan_dao"
 - useEffect
 - flatMap
 - 超モダン個人開発スタック
+- カスタムユーティリティタイプス
 
 # product
 

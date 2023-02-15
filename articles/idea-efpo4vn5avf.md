@@ -12,6 +12,8 @@ publication_name: "gohan_dao"
 - useEffect
 - flatMap
 - 超モダン個人開発スタック
+- firebase(型)
+- firebase-admin
 
 # product
 

@@ -1,13 +1,13 @@
 ---
-title: 'カスタムUtiliyTypesで一部のみオプショナルにする型を作成'
+title: '【TypeScript】Utility Types ハックして自作の型を作ってみた'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: ['typescript']
 published: false
-publication_name: "gohan_dao"
+publication_name: 'gohan_dao'
 ---
 
-# utilitytypes とは
+# Utility Types とは
 
 https://www.typescriptlang.org/docs/handbook/utility-types.html
 
@@ -68,18 +68,23 @@ const user: PartialUser = {
 ```
 
 ## 解説
+
 ```ts
 type customPartial<T, K extends keyof T>
- ```
- の部分から見ていきます。
-TはUserが入ります。`keyof T`は`name`、`age`、`address`、`phoneNumber`の4つの文字列のUnion型になります。つまり、`K`は`name`、`age`、`address`、`phoneNumber`のいずれかの文字列になります。
+```
+
+の部分から見ていきます。
+T は User が入ります。`keyof T`は`name`、`age`、`address`、`phoneNumber`の 4 つの文字列の Union 型になります。つまり、`K`は`name`、`age`、`address`、`phoneNumber`のいずれかの文字列になります。
 
 次に、`Omit`の部分です。
+
 ```ts
-Omit<T, K>
+Omit<T, K>;
 ```
-Omitは`T`から`K`を除外した型を返します。
+
+Omit は`T`から`K`を除外した型を返します。
 例えば
+
 ```ts
 type User = {
   name: string;
@@ -90,22 +95,29 @@ type User = {
 
 type OmitUser = Omit<User, 'name' | 'age'>;
 ```
+
 のようにすると、`OmitUser`の型は
+
 ```ts
 OmitUser = {
   address: string;
   phoneNumber: string;
 }
 ```
+
 となります。
 
 次に、`Partial`と`Pick`の部分です。
+
 ```ts
-Partial<Pick<T, K>>
+Partial<Pick<T, K>>;
 ```
+
 `Partial`は`T`の全てのプロパティをオプショナルにします。`Pick`は`T`から`K`を選択した型を返します。
+そして選択された型を`Partial`でオプショナルにします。
 
 例えば
+
 ```ts
 type User = {
   name: string;
@@ -118,33 +130,37 @@ type PartialUser = Partial<Pick<User, 'name' | 'age'>>;
 ```
 
 のようにすると、`PartialUser`の型は
+
 ```ts
 PartialUser = {
   name?: string;
   age?: number;
 }
 ```
+
 となります。
 
 最後にこれらを組み合わせると、
+
 ```ts
 type customUser = {
   name?: string;
   age?: number;
   address: string;
   phoneNumber: string;
-}
+};
 ```
 
 となります。
 
-
-これにてutilitytypesのハック完了です。
+これにて utilitytypes のハック完了です。
 
 ## オプショナルをとるパターン
+
 逆に必須にしるパターンも作ってみます。
 
 ```ts
 type customRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
 ```
+
 同じ考えでできますね。

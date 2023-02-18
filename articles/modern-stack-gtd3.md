@@ -7,8 +7,6 @@ published: false
 publication_name: 'gohan_dao'
 ---
 
-# 次の個人開発で使いたい、超モダンなスキルスタック
-
 現在、２名の web エンジニアで[slii-web](https://slii.xyz/)というサービスを開発しています。slii-web のスタック([こちらの記事から確認できます](https://zenn.dev/gohan_dao/articles/f34350b68e7469))もかなりモダンで個人開発に特化したものを使っています。
 今回使ってみてよかったものと、次の個人開発で使いたいものをまとめました。
 

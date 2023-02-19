@@ -51,6 +51,8 @@ type User = {
   phoneNumber: string;
 };
 
+type PartialUser = customPartial<User, 'phoneNumber'>;
+
 // PartialUserの型
 PartialUser = {
   name: string;
@@ -126,16 +128,16 @@ type User = {
   phoneNumber: string;
 };
 
-type PartialUser = Partial<Pick<User, 'name' | 'age'>>;
+type PickAndPartialUser = Partial<Pick<User, 'name' | 'age'>>;
 ```
 
 のようにすると、`PartialUser`の型は
 
 ```ts
-PartialUser = {
+type PickAndPartialUser = {
   name?: string;
   age?: number;
-}
+};
 ```
 
 となります。
@@ -143,7 +145,7 @@ PartialUser = {
 最後にこれらを組み合わせると、
 
 ```ts
-type customUser = {
+type PartialUser = {
   name?: string;
   age?: number;
   address: string;

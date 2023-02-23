@@ -12,9 +12,10 @@ publication_name: 'gohan_dao'
 - useEffect
 - flatMap
 - 超モダン個人開発スタック
-- カスタムユーティリティタイプス
+- ~~カスタムユーティリティタイプス~~
 - firebase(型)
 - firebase-admin
+- RHF zod select string to number
 
 # product
 

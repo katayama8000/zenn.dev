@@ -2,7 +2,7 @@
 title: 'React Hook Form + zodでselectフォームを作る際のはまりどころ'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
-topics: []
+topics: ['react', 'react-hook-form', 'zod', 'typescript', 'javascript']
 published: false
 ---
 

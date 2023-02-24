@@ -1,14 +1,14 @@
 ---
 title: 'React Hook Form + zodでselectフォームを作る際のはまりどころ'
-emoji: '👋'
+emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: []
 published: false
 ---
 
-# select を使うと型が合わない
+## select を使うと型が合わない
 
-## 一見問題なさそうなコード
+#### 一見問題なさそうなコード
 
 ```tsx
 const schema = z.object({
@@ -53,7 +53,7 @@ watch を使ってみると、選択した値は数値型ではなく文字列�
 console.log(watch('cost'));
 ```
 
-## なぜか
+#### なぜか
 
 select の value は文字列型になるため。
 
@@ -63,9 +63,9 @@ select の value は文字列型になるため。
 
 value に number を入れても文字列型になってしまいます。厄介ですね。
 
-# 解決策１
+## 解決策１
 
-## valueAsNumber を使う
+### valueAsNumber を使う
 
 https://react-hook-form.com/api/useform/register#options
 RHF の`register`のオプションに存在します。
@@ -77,9 +77,9 @@ RHF の`register`のオプションに存在します。
 
 number 型になったことにより、バリテーションを通過するようになりました。
 
-#　解決策２
+## 解決策２
 
-## zod の transform を使う
+### zod の transform を使う
 
 https://zod.dev/?id=transform
 
@@ -92,7 +92,7 @@ const schema = z.object({
 });
 ```
 
-# まとめ
+## まとめ
 
 RHF と zod を使って select フォームを作る際には、number へのキャストが必要なことがわかりました。
 RHF にはハマりどころが多いので、理解しながらうまく付き合っていきたいですね！

@@ -3,7 +3,7 @@ title: '【TypeScript】Utility Types ハックして自作の型を作ってみ
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: ['typescript']
-published: false
+published: true
 publication_name: 'gohan_dao'
 ---
 

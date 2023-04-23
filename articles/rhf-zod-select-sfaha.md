@@ -3,7 +3,7 @@ title: 'React Hook Form + zodでselectフォームを作る際のはまりどこ
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: ['react', 'react-hook-form', 'zod', 'typescript', 'javascript']
-published: false
+published: true
 ---
 
 ## select を使うと型が合わない

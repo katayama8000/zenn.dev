@@ -7,5 +7,14 @@ published: false
 ---
 
 ## 結論
-``
+`jest.fn()`は
+`jest.spyOn()`は
+
+### jest.fn()
+
+
+
+### jest.spyOn()
+
+
 

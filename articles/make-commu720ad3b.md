@@ -1,5 +1,5 @@
 ---
-title: '顔も知らない人と共同開発アプリをリリースし、コミュニティを作った'
+title: '顔も知らない人と共同開発でアプリをリリースし、コミュニティを作った'
 emoji: '🦍'
 type: 'idea' # tech: 技術記事 / idea: アイデア
 topics: ['javascript', 'typescript', 'react', '個人開発']

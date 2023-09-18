@@ -13,6 +13,16 @@ https://doc.rust-jp.rs/rust-by-example-ja/error/result.html
 > Ok<T>: 要素Tが見つかった場合
 > Err<E>: 要素Eとともにエラーが見つかった場合
 > 慣例により、Okが期待される結果であり、Errは期待されない結果です。
+
+難しく考える必要はありません。
+```rust
+enum Result<T, E> {
+    Ok(T),
+    Err(E),
+}
+```
+このような型が返却されるだけです。
+
 ## 実際にResultを返す関数を作ってみる
 読むだけでは分かりにくいので、実際に書いてみます。
 今回はフルネームを返す関数を作成し、戻り値を`Result`にしてみます。
@@ -181,6 +191,18 @@ fn function() -> Result<String, String> {
 }
 ```
 今回はエラーを返しているので、`unwrap`でパニックになります。
+
+## is_err() is_ok()
+見ての通り、`bool`が返される。
+下記の場合は、`true`.
+
+
+```rust
+let last_name = "yamada";
+let first_name = "";
+let ret = build_full_name(last_name, first_name).is_err();
+println!("{}", ret);
+```
 
 
 

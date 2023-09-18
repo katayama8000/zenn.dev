@@ -94,7 +94,7 @@ let full_name = build_full_name(last_name, first_name).unwrap();
 ```
 失敗時は、これ以降の処理は何も実行されません。なので`unwrap`の使用には注意する必要があります。
 
-unwrapの中をmatchで書き直すと下記のようになります。
+`unwrap`の中を`match`で書き直すと下記のようになります。
 `match`を短くしただけです。
 ```rust
 result.unwrap()
@@ -193,8 +193,8 @@ fn function() -> Result<String, String> {
 今回はエラーを返しているので、`unwrap`でパニックになります。
 
 ## is_err() is_ok()
-見ての通り、`bool`が返される。
-下記の場合は、`true`.
+見ての通り、`bool`が返されます。
+下記の場合は、`true`。
 
 
 ```rust

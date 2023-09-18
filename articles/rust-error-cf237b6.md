@@ -139,6 +139,48 @@ println!("{}", ret);
 
 
 ## ?
+`?`はエラーの伝搬をします。
+
+```rust
+fn function() {
+    let last_name = "yamada";
+    let first_name = "";
+    let full_name = build_full_name(last_name, first_name)?;
+    println!("Full Name: {}", full_name);
+}
+```
+
+Resultの中身を取り出せるのですが、
+```bash
+the `?` operator can only be used in a function that returns `Result` or `Option` (or another type that implements `FromResidual`)
+```
+`result`、`option`を返す関数でしか使えないというエラーが出ます。
+
+つまり以下のようにする必要があります。
+```rust
+fn function() -> Result<String, String> {
+    let last_name = "yamada";
+    let first_name = "";
+    let full_name = build_full_name(last_name, first_name)?;
+    Ok(full_name)
+}
+```
+
+これを実行させてみます。
+```rust
+fn main() {
+    let ret = function().unwrap();
+    println!("{}", ret);
+}
+
+fn function() -> Result<String, String> {
+    let last_name = "yamada";
+    let first_name = "";
+    let full_name = build_full_name(last_name, first_name)?;
+    Ok(full_name)
+}
+```
+今回はエラーを返しているので、`unwrap`でパニックになります。
 
 
 

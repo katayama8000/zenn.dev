@@ -3,7 +3,7 @@ title: '次の個人開発で使いたい、爆速開発可能な超モダンな
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: ['typescript', 'react', 'remix', 'tailwindcss', 'vercel']
-published: false
+published: true
 publication_name: 'gohan_dao'
 ---
 

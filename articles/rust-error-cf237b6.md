@@ -1,9 +1,9 @@
 ---
-title: "rustのエラーハンドリング"
+title: "[初学者]rustのエラーハンドリング"
 emoji: "🦍"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["rust"]
-published: false
+published: true
 ---
 
 # Result型とは

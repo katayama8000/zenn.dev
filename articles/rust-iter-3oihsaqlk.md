@@ -3,7 +3,7 @@ title: "rustのイテレータ"
 emoji: "🦍"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [rust]
-published: true
+published: false
 published_at: 2023-09-25 12:30 # 未来の日時を指定する
 
 ---

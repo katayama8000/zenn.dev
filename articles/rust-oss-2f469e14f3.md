@@ -2,7 +2,7 @@
 title: 'Rust で Expo の push通知 SDK を作って公開した'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
-topics: [rust, oss, expo, react-native, notification, firebase]
+topics: [rust, oss, expo, reactnative, firebase]
 published: false
 ---
 

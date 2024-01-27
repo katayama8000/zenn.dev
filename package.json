@@ -1,7 +1,7 @@
 {
   "name": "zenn-content",
   "version": "1.0.0",
-  "description": "",
+  "description": "this is a zenn content management on github",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -10,6 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "zenn-cli": "^0.1.146"
+    "zenn-cli": "^0.1.151"
   }
 }

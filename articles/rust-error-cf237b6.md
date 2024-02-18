@@ -3,7 +3,7 @@ title: '[初学者]rustのエラーハンドリング'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: ['rust']
-published: true
+published: false
 ---
 
 # Result 型とは

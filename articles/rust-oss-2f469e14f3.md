@@ -3,8 +3,8 @@ title: 'Rust 製 Expo SDK を作ったら、Expo の公式ドキュメントに�
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: [rust, oss, expo, reactnative, firebase]
-published: false
-# publishedAt: '2021-10-01'
+published: true
+published_at: 2024-02-29 12:30
 publication_name: 'doctormate'
 ---
 
@@ -99,7 +99,3 @@ web 開発における Rust はまだまだ揃ってない部分があり、反�
 リポジトリへの issue、PR、Star など、いただけると嬉しいです。
 
 ## We are hiring!!!
-
-```
-明日公開します。
-```

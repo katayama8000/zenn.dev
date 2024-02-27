@@ -86,7 +86,7 @@ let expo_push_message = ExpoPushMessage::builder(expo_push_tokens)
 ![discord](/images/rust-oss/discord4.png)
 
 [Jon Samp (Expo の人)](https://jonsamp.dev/) さんが２つ PR を作成してくれました。一つは、既存の [expo-server-sdk-rust](https://github.com/expo/expo-server-sdk-rust) をもうメンテナンスせずに、私が作成した、crate を使うように促す PR 。
-[もう一つ](https://github.com/expo/expo-server-sdk-rust/pull/10)は、公式ドキュメントに私が作成した crate を載せる PR でした。
+[もう一つ](https://github.com/expo/expo/pull/27116)は、公式ドキュメントに私が作成した crate を載せる PR でした。
 
 両方とも、無事にマージされ、[公式ドキュメント](https://docs.expo.dev/push-notifications/sending-notifications/#send-push-notifications-using-a-server)に載せてもらえることになりました。
 ![expo](/images/rust-oss/expo-doc.png)
@@ -97,5 +97,3 @@ let expo_push_message = ExpoPushMessage::builder(expo_push_tokens)
 web 開発における Rust はまだまだ揃ってない部分があり、反対に言えば、自分で作るチャンスが多いです。これを機に OSS 活動をもっとしていきたいと思いました。
 
 リポジトリへの issue、PR、Star など、いただけると嬉しいです。
-
-## We are hiring!!!

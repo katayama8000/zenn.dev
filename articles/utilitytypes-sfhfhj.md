@@ -159,7 +159,7 @@ type PartialUser = {
 
 ## オプショナルをとるパターン
 
-逆に必須にしるパターンも作ってみます。
+逆に必須にするパターンも作ってみます。
 
 ```ts
 type customRequired<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;

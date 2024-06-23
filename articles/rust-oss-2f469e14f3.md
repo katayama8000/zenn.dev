@@ -35,9 +35,6 @@ let expo = Expo::new(ExpoClientOptions {
 let expo_push_tokens = ["ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"];
 let expo_push_message = ExpoPushMessage::builder(expo_push_tokens).build()?;
 expo.send_push_notifications(expo_push_message).await;
-
-let expo_push_ids = GetPushNotificationReceiptsRequest::new(vec!["xxxxx".to_string(), "xxxxx".to_string()]);
-expo.get_push_notification_receipts(expo_push_ids).await;
 ```
 
 送信時のパラメーターも設定できます。
@@ -95,5 +92,3 @@ let expo_push_message = ExpoPushMessage::builder(expo_push_tokens)
 
 初めて、作成した crate が Expo の公式ドキュメントに載せていただき、とても良い経験になりました。
 web 開発における Rust はまだまだ揃ってない部分があり、反対に言えば、自分で作るチャンスが多いです。これを機に OSS 活動をもっとしていきたいと思いました。
-
-リポジトリへの issue、PR、Star など、いただけると嬉しいです。

@@ -4,12 +4,15 @@
   "description": "this is a zenn content management on github",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "zenn preview",
+    "book": "npx zenn new:article",
+    "article": "npx zenn new:article"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "zenn-cli": "^0.1.153"
+    "zenn-cli": "^0.1.154"
   }
 }

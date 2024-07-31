@@ -3,8 +3,7 @@ title: "身近な人やパートナーにアプリを作るすゝめ"
 emoji: "🦍"
 type: "idea" # tech: 技術記事 / idea: アイデア
 topics: ["ReactNative", "Expo", "TypeScript", "Rust", "Vercel"]
-published: false
-publishedAt: "2024-07-31 19:00:00"
+published: true
 ---
 
 ## 生きてるレポジトリ持っていますか？

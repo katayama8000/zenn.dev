@@ -4,8 +4,11 @@ emoji: "🦍"
 type: "idea" # tech: 技術記事 / idea: アイデア
 topics: ["ReactNative", "Expo", "TypeScript", "Rust", "Vercel"]
 published: true
+publication_name: 'doctormate'
 ---
-
+:::message
+この記事は、弊社ドクターメイトの社内LTで発表したものです。
+:::
 ## 生きてるレポジトリ持っていますか？
 
 ### ここで言う生きてるレポジトリとは

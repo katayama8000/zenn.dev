@@ -1,7 +1,7 @@
 ---
 title: 'Rust 製 Expo SDK を作ったら、Expo の公式ドキュメントに掲載された'
 emoji: '🦍'
-type: 'tech' # tech: 技術記事 / idea: アイデア
+type: 'idea' # tech: 技術記事 / idea: アイデア
 topics: [rust, oss, expo, reactnative, firebase]
 published: true
 published_at: 2024-02-28 12:30

@@ -362,8 +362,292 @@ pub async fn get_image(&self, image_id: &str) -> Result<GyazoImageResponse, ()> 
 ```
 
 ### エラーの定義をする
+次に、エラーの定義をします。
+| code | Description |
+| --- | --- |
+| 200 | Success |
+| 400 | リクエストパラメータが不正なときにこの値が返ります。 |
+| 401 | ユーザーの認証が必要なときにこの値が返ります。 |
+| 403 | アクセスする権限がないときにこの値が返ります。 |
+| 404 | Not found |
+| 422 | リクエストパラメータが文法的には正しいがサーバーで処理できないときにこの値が返ります。 |
+| 429 | Rate limiting |
+| 500 | Unexpected internal error |
+
+```rust
+#[derive(Error, Debug)]
+pub enum GyazoError {
+    #[error("HTTP request failed: {0}")]
+    RequestFailed(#[from] reqwest::Error),
+    #[error("Failed to parse JSON: {0}")]
+    JsonParseError(#[from] serde_json::Error),
+    #[error("Bad Request: Invalid request parameters")]
+    BadRequest,
+    #[error("Unauthorized: Authentication required")]
+    Unauthorized,
+    #[error("Forbidden: Access denied")]
+    Forbidden,
+    #[error("Not Found")]
+    NotFound,
+    #[error("Unprocessable Entity: Server cannot process the request")]
+    UnprocessableEntity,
+    #[error("Too Many Requests: Rate limit exceeded")]
+    RateLimitExceeded,
+    #[error("Internal Server Error: Unexpected error occurred")]
+    InternalServerError,
+    #[error("API error: {status}, message: {message}")]
+    ApiError { status: StatusCode, message: String },
+    #[error("Unexpected error: {0}")]
+    Other(String),
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+    #[error("Invalid url: {0}")]
+    InvalidUrl(String),
+}
+```
+`GyazoError` というエラーを定義しています。
+`thiserror` というクレートを使っていますが、ここでは、使い方は省略します。
+
+### API にリクエストを送る
+いよいよ、API にリクエストを送ります。
+#### Image
+`Image` のリクエストを送る際には、`GET` メソッドを使います。
+`reqwest` クレートを使って、リクエストを送ります。
+
+```rust
+pub async fn get_image(&self, image_id: &str) -> Result<GyazoImageResponse, GyazoError> {
+    let url = format!("https://api.gyazo.com/api/images/{}", image_id);
+    let response = self
+        .client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", self.access_token))
+        .send()
+        .await?;
+
+    match response.status() {
+        StatusCode::OK => {
+            let response = response.json::<GyazoImageResponse>().await?;
+            Ok(response)
+        }
+        StatusCode::BAD_REQUEST => Err(GyazoError::BadRequest),
+        StatusCode::UNAUTHORIZED => Err(GyazoError::Unauthorized),
+        StatusCode::FORBIDDEN => Err(GyazoError::Forbidden),
+        StatusCode::NOT_FOUND => Err(GyazoError::NotFound),
+        StatusCode::UNPROCESSABLE_ENTITY => Err(GyazoError::UnprocessableEntity),
+        StatusCode::TOO_MANY_REQUESTS => Err(GyazoError::RateLimitExceeded),
+        StatusCode::INTERNAL_SERVER_ERROR => Err(GyazoError::InternalServerError),
+        status => Err(GyazoError::Other(format!("Unexpected status code: {}", status))),
+    }
+}
+```
+戻り値には、上で定義した `GyazoImageResponse` と `GyazoError` を使っています。
+`reqwest` でリクエストを送り、`response.status()` でステータスコードを取得しています。
+ステータスコードによって、エラーを返すか、成功した場合は、`GyazoImageResponse` を返します。
+`serde` を使って、`json` 形式から `GyazoImageResponse` に変換しています。
+`Image` は結構シンプルですね。
+
+#### Upload
+`Upload` のリクエストを送る際には、リクエストボディに必要なパラメータを入れて、`POST` メソッドを使います。
+`Content-Type` は `multipart/form-data` です。
+当然、`reqwest` も `multipart/form-data` に対応しています。
+https://docs.rs/reqwest/0.11.27/reqwest/blocking/multipart/index.html
+
+まずは `UploadParams` に `From` トレイトを実装します。
+
+```rust
+impl From<UploadParams> for reqwest::multipart::Form {
+    fn from(params: UploadParams) -> Self {
+        let mut form = reqwest::multipart::Form::new().part(
+            "imagedata",
+            reqwest::multipart::Part::bytes(params.imagedata).file_name("image.png"),
+        );
+        form = form.text(
+            "access_policy",
+            params.access_policy.unwrap_or_else(|| "anyone".to_string()),
+        );
+        if let Some(metadata_is_public) = params.metadata_is_public {
+            form = form.text("metadata_is_public", metadata_is_public);
+        }
+        if let Some(referer_url) = params.referer_url {
+            form = form.text("referer_url", referer_url);
+        }
+        if let Some(app) = params.app {
+            form = form.text("app", app);
+        }
+        if let Some(title) = params.title {
+            form = form.text("title", title);
+        }
+        if let Some(desc) = params.desc {
+            form = form.text("desc", desc);
+        }
+        if let Some(created_at) = params.created_at {
+            form = form.text("created_at", created_at);
+        }
+        if let Some(collection_id) = params.collection_id {
+            form = form.text("collection_id", collection_id);
+        }
+        form
+    }
+}
+```
+これで、`UploadParams` を `reqwest::multipart::Form` に変換できるようになりました。
+
+次に、`Upload` メソッドを実装します。
+
+```rust
+pub async fn upload_image(
+    &self,
+    params: UploadParams,
+) -> Result<UploadImageResponse, GyazoError> {
+    let form = param.into();
+    let response = self
+        .client
+        .post("https://upload.gyazo.com/api/upload")
+        .header("Authorization", format!("Bearer {}", self.access_token))
+        .multipart(form)
+        .send()
+        .await?;
+
+    match response.status() {
+        StatusCode::OK => {
+            let response = response.json::<UploadImageResponse>().await?;
+            Ok(response)
+        }
+        StatusCode::BAD_REQUEST => Err(GyazoError::BadRequest),
+        StatusCode::UNAUTHORIZED => Err(GyazoError::Unauthorized),
+        StatusCode::FORBIDDEN => Err(GyazoError::Forbidden),
+        StatusCode::NOT_FOUND => Err(GyazoError::NotFound),
+        StatusCode::UNPROCESSABLE_ENTITY => Err(GyazoError::UnprocessableEntity),
+        StatusCode::TOO_MANY_REQUESTS => Err(GyazoError::RateLimitExceeded),
+        StatusCode::INTERNAL_SERVER_ERROR => Err(GyazoError::InternalServerError),
+        status => Err(GyazoError::Other(format!("Unexpected status code: {}", status))),
+    }
+}
+```
+`UploadParams` を `reqwest::multipart::Form` に変換して、`multipart` メソッドに渡しています。
+これで、`Upload` メソッドが完成しました。
+
 ### テストを書く
+最後に、テストを書きます。
+API のテストは、`mockito` クレートを使って、モックサーバーを立ててテストします。
+モックする理由は、テスト時に毎回リクエストを送ると、API に負荷がかかったり、上限に引っかかる可能性があるためです。
+正しここで問題があります。
+上記のようなコードだと、エンドポイントを固定してしまっているため、モックサーバーを立てても、そこにリクエストを送ることができません。
+まずは、`GyazoClient` にエンドポイントを引数に取るように変更します。
+
+```rust
+#[derive(Clone, Debug)]
+pub struct GyazoClient {
+    client: Client,
+    access_token: String,
+    base_url: Url,
+    upload_url: Url,
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct GyazoClientOptions {
+    pub access_token: String,
+    pub base_url: Option<String>,
+    pub upload_url: Option<String>,
+}
+
+impl GyazoClient {
+    pub fn new(options: GyazoClientOptions) -> Self {
+        let base_url = options
+            .base_url
+            .map(|url| Url::parse(&url).expect("base_url must be a valid URL"))
+            .unwrap_or_else(|| Url::parse(DEFAULT_BASE_URL).expect("base_url must be a valid URL"));
+        let upload_url = options
+            .upload_url
+            .map(|url| Url::parse(&url).expect("upload_url must be a valid URL"))
+            .unwrap_or_else(|| {
+                Url::parse(DEFAULT_UPLOAD_URL).expect("upload_url must be a valid URL")
+            });
+        GyazoClient {
+            client: Client::new(),
+            access_token: options.access_token,
+            base_url,
+            upload_url,
+        }
+    }
+}
+```
+`GyazoClientOptions` という構造体を作り、`base_url` と `upload_url` を追加しました。
+テスト時には、`base_url` と `upload_url` をモックサーバーのエンドポイントに変更します。
+実際に `GyazoClient` を使う時、いちいち、`None` を定義するのはあまりいけていないので、`Default` トレイトを実装して、デフォルト値を設定しています。
+
+```rust
+let gyazo_client = GyazoClient::new("YOUR_ACCESS_TOKEN".to_string(), ..Default::default());
+```
+
+これで、テストを書く準備ができました。
+`mockito` を使って、モックサーバーを立てて、テストします。
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mockito::Matcher;
+
+    #[tokio::test]
+    async fn test_get_image() -> anyhow::Result<()> {
+        let mut server = mockito::Server::new_async().await;
+        let mock_response = r#"
+        {
+            "image_id": "abc123",
+            "permalink_url": "https://gyazo.com/abc123",
+            "thumb_url": "https://thumb.gyazo.com/thumb/abc123",
+            "type": "png",
+            "created_at": "2024-08-10 12:00:00",
+            "metadata": {
+                "app": null,
+                "title": null,
+                "url": null,
+                "desc": null
+            },
+            "ocr": null
+        }
+        "#;
+
+        server
+            .mock("GET", "/api/images/abc123")
+            .match_header("Authorization", Matcher::Regex("Bearer .+".to_string()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(mock_response)
+            .create();
+
+        let client = GyazoClient::new(GyazoClientOptions {
+            access_token: "fake_token".to_string(),
+            base_url: Some(server.url().to_string()),
+            upload_url: None,
+        });
+        let result = client.get_image("abc123").await;
+
+        assert!(result.is_ok());
+        let image = result?;
+        assert_eq!(image.image_id, "abc123");
+        assert_eq!(
+            image.permalink_url,
+            Some("https://gyazo.com/abc123".to_string())
+        );
+        Ok(())
+    }
+}
+```
+あとは、割と簡単です。
+1. `mockito` でモックサーバーを立てます。
+2. インスタンス化した `GyazoClient` に、モックサーバーのエンドポイントを渡して、リクエストを送ります。
+3. `assert_eq!` で、期待する値と実際の値を比較しています。
+
+`Rust` には、ドキュメントテストというものがあルので、それを使って、テストを書いてもいいかもしれません。
+https://doc.rust-jp.rs/rust-by-example-ja/testing/doc_testing.html
+
+あと、共有処理をまとめたり、テストを追加したものが、ありますので、参考にしてみてください。
+https://github.com/katayama8000/gyazo-client-rust
+
+
 
 ## まとめ
-Rust で API クライアントを作る手順をまとめました。
+Rust で API クライアントを作る手順をまとめました。`Rust` は、まだまだ、プロダクションで使われることが少ないので、それに伴って、ライブラリも少ないです。結構有名なサービスでも、`Rust` の API クライアントがないことが多いです。弊社では、`Firebase` を使っているのですが、`Rust` の API クライアントがないので、自作しています。そんな弊社、エンジニアを募集しています。業務で `OSS` が作成できるのは、良い経験になると思います。
 

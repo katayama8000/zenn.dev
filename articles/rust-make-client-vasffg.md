@@ -7,22 +7,24 @@ published: false
 ---
 
 ## 初めに
-Rust で API クライアントを作る手順をまとめました。
-Rust はまだまだ、プロダクションで使われることが少ないので、それに伴って、ライブラリも少ないです。
-逆に言えば、ライブラリを作るチャンスが多いということです。
-自作OSSを作ったことない人でも、とっつきやすいと思います。
+`Rust SDK` がないサービスは結構あるので、`Rust` を採用した場合に、自作することが多いです。有名なもので言うと、`Firebase` や `Supabase` も 公式の　`Rust SDK` がないです。
+この記事では、`Rust` で API クライアントを作る手順を紹介します。
 
-# APIを選ぶ
+## APIを選ぶ
 まずは、API を選びます。
 公開 API がまとまっている[サイト](https://apidog.com/apihub/)とかあるので、そこから選ぶといいかもしれません。
-今回私は、[gyazo api](https://gyazo.com/api/docs/image)を選びました。
+`Rust SDK` があまりないと上で述べましたが、とても有名なサービスで API を公開しているものは、有志で作っていることが結構あります。
+[notion](https://github.com/jakeswenson/notion) とか [spotify](https://github.com/ramsayleung/rspotify) とかは、有志で作られています。
+
+今回私は、[gyazo](https://gyazo.com/api/docs/image)を選びました。
 理由は、Scrapbox が好きなこと(関係ない)と書き込み API が存在したためです。
 
-## ライブラリを作る
-`Gyazo API` には、公開 API のエンドポイントが 5 つあリます。
+## ライブラリ(クレート)を作る
+`Gyazo API` には、公開 API のエンドポイントが複数あります。
 今回は、`Image` と `Upload` の 2 つを実装します。
+
 ### Client を作る
-まずは、Client を作ります。
+まずは、`Client` を作ります。
 私は、`GyazoClient`と命名しました。
 
 ```rust
@@ -31,7 +33,7 @@ pub struct GyazoClient {
     access_token: String,
 }
 ```
-つぎに、このクライアントに対して、`new`メソッドを実装します。
+つぎに、このクライアントに対して、`new` メソッドを実装します。
 
 ```rust
 impl GyazoClient {
@@ -43,7 +45,6 @@ impl GyazoClient {
     }
 }
 ```
-他の言語でいうところのコンストラクタです。
 あとは、`Image` と `Upload` のメソッドを仮で実装します。
 
 ```rust
@@ -60,14 +61,17 @@ impl GyazoClient {
 これで、枠組みは完成です。
 
 ### Input の定義をする
-次に、Input の定義をします。
+次に、`Input` の定義をします。
 API にリクエストする際に、必要なパラメータを定義します。
+
 #### Image
 まずは、`Image` のリクエストをする際に必要なパラメータを定義します。
-Image はとても簡単です。API 仕様書を見てみましょう
+`Image` はとても簡単です。API 仕様書を見てみましょう
+
 ```bash
 GET https://api.gyazo.com/api/images
 ```
+
 | Key | Type | Required |
 | --- | --- | --- |
 | access_token | String | true |
@@ -81,7 +85,8 @@ pub struct ImageRequest {
     image_id: String,
 }
 ```
-これだけであれば、わざわざ struct を定義する必要はないので、`get_image` メソッドの引数に直接書きます。
+
+これだけであれば、わざわざ `struct` を定義する必要はないので、`get_image` メソッドの引数に直接書きます。
 
 ```rust
 pub async fn get_image(&self, image_id: &str) -> Result<(), ()> {
@@ -92,9 +97,11 @@ pub async fn get_image(&self, image_id: &str) -> Result<(), ()> {
 #### Upload
 次に、`Upload` のリクエストをする際に必要なパラメータを定義します。
 同じように、API 仕様書を見てみましょう
+
 ```bash
 POST https://upload.gyazo.com/api/upload
 ```
+
 | Key | Type | Required |
 | --- | --- | --- |
 | access_token | String | true |
@@ -230,7 +237,7 @@ impl UploadParamsBuilder {
 ```
 `imagedata` 以外は、オプショナルなので、初期値に `None` を入れています。
 各メソッドが呼び出されたタイミングで必要なのもは、検証を行い、`self` に値を入れています。
-さいごに、`build` メソッドで、`UploadParams` を生成しています。
+最後、`build` メソッドで、`UploadParams` を生成しています。
 ※ `GyazoError` は、エラーの定義をする際に使います。後述します。
 使い方は以下のようになります。
 
@@ -244,7 +251,7 @@ let gyazo_client = GyazoClient::new("your_access_token".to_string());
 gyazo_client.upload_image(params).await?;
 ```
 
-##### nits
+##### 補足：トレイトについて
 rust では引数にトレイトを使うことができます。
 例えば以下の関数では、`Summary` トレイトを実装しているものを引数に取ることができます。
 ```rust
@@ -407,6 +414,7 @@ pub enum GyazoError {
 ```
 `GyazoError` というエラーを定義しています。
 `thiserror` というクレートを使っていますが、ここでは、使い方は省略します。
+全てのエラーを `GyazoError` にまとめていますが、分けてもいいかもしれません。
 
 ### API にリクエストを送る
 いよいよ、API にリクエストを送ります。
@@ -531,7 +539,7 @@ pub async fn upload_image(
 最後に、テストを書きます。
 API のテストは、`mockito` クレートを使って、モックサーバーを立ててテストします。
 モックする理由は、テスト時に毎回リクエストを送ると、API に負荷がかかったり、上限に引っかかる可能性があるためです。
-正しここで問題があります。
+ただし、ここで問題があります。
 上記のようなコードだと、エンドポイントを固定してしまっているため、モックサーバーを立てても、そこにリクエストを送ることができません。
 まずは、`GyazoClient` にエンドポイントを引数に取るように変更します。
 
@@ -574,7 +582,7 @@ impl GyazoClient {
 ```
 `GyazoClientOptions` という構造体を作り、`base_url` と `upload_url` を追加しました。
 テスト時には、`base_url` と `upload_url` をモックサーバーのエンドポイントに変更します。
-実際に `GyazoClient` を使う時、いちいち、`None` を定義するのはあまりいけていないので、`Default` トレイトを実装して、デフォルト値を設定しています。
+実際に `GyazoClient` を使う時、いちいち、`None` を定義するのはあまりいけていないので、`Default` トレイトを実装して、デフォルト値を設定できるようにしました。
 
 ```rust
 let gyazo_client = GyazoClient::new("YOUR_ACCESS_TOKEN".to_string(), ..Default::default());
@@ -635,12 +643,12 @@ mod tests {
     }
 }
 ```
-あとは、割と簡単です。
+あとは、比較的簡単です。
 1. `mockito` でモックサーバーを立てます。
-2. インスタンス化した `GyazoClient` に、モックサーバーのエンドポイントを渡して、リクエストを送ります。
+2. `GyazoClient` に、モックサーバーのエンドポイントを渡して、リクエストを送ります。
 3. `assert_eq!` で、期待する値と実際の値を比較しています。
 
-`Rust` には、ドキュメントテストというものがあルので、それを使って、テストを書いてもいいかもしれません。
+`Rust` には、ドキュメントテストというものがあるので、それを使って、テストを書いてもいいかもしれません。
 https://doc.rust-jp.rs/rust-by-example-ja/testing/doc_testing.html
 
 あと、共有処理をまとめたり、テストを追加したものが、ありますので、参考にしてみてください。
@@ -649,5 +657,7 @@ https://github.com/katayama8000/gyazo-client-rust
 
 
 ## まとめ
-Rust で API クライアントを作る手順をまとめました。`Rust` は、まだまだ、プロダクションで使われることが少ないので、それに伴って、ライブラリも少ないです。結構有名なサービスでも、`Rust` の API クライアントがないことが多いです。弊社では、`Firebase` を使っているのですが、`Rust` の API クライアントがないので、自作しています。そんな弊社、エンジニアを募集しています。業務で `OSS` が作成できるのは、良い経験になると思います。
+`Rust` で API クライアントを作る手順をまとめました。この記事で、誰かの `OSS` 活動の第一歩になれば幸いです。
+また、弊社では `Firebase` をバックエンドに使用しており、`Rust` で `Firebase` のクライアントも開発しています。仕事を通じて `OSS` 活動ができるのは、なかなか良い環境だと思います。
 
+現在、エンジニアを絶賛募集中です！カジュアルな面談からでも大歓迎ですので、ぜひお気軽にご連絡ください！

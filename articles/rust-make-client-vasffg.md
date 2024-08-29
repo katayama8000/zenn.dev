@@ -1,19 +1,21 @@
 ---
-title: "Rust で Client(API Wrapper) を作る手順"
+title: "Rust で Client(API Wrapper) を作る方法"
 emoji: "🦍"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["Rust", "API"]
-published: false
+published: true
+published_at: 2024-08-29 12:30
+publication_name: 'doctormate'
 ---
 
 ## 初めに
-`Rust SDK` がないサービスは結構あるので、`Rust` を採用した場合に、自作することが多いです。有名なもので言うと、`Firebase` や `Supabase` も 公式の　`Rust SDK` がないです。
+`Rust SDK` がないサービスは結構あるので、`Rust` を採用した場合に、ライブラリを自作することが多いです。有名なもので言うと、`Firebase` や `Supabase` も 公式の　`Rust SDK` がないです。
 この記事では、`Rust` で API クライアントを作る手順を紹介します。
 
 ## APIを選ぶ
 まずは、API を選びます。
 公開 API がまとまっている[サイト](https://apidog.com/apihub/)とかあるので、そこから選ぶといいかもしれません。
-`Rust SDK` があまりないと上で述べましたが、とても有名なサービスで API を公開しているものは、有志で作っていることが結構あります。
+`Rust SDK` があまりないと上で述べましたが、有名なサービスで API を公開しているものは、有志で作っていることが結構あります。
 [notion](https://github.com/jakeswenson/notion) とか [spotify](https://github.com/ramsayleung/rspotify) とかは、有志で作られています。
 
 今回私は、[gyazo](https://gyazo.com/api/docs/image)を選びました。
@@ -22,6 +24,7 @@ published: false
 ## ライブラリ(クレート)を作る
 `Gyazo API` には、公開 API のエンドポイントが複数あります。
 今回は、`Image` と `Upload` の 2 つを実装します。
+他の API も今回紹介する方法で大体実装できるはずです。
 
 ### Client を作る
 まずは、`Client` を作ります。
@@ -86,7 +89,7 @@ pub struct ImageRequest {
 }
 ```
 
-これだけであれば、わざわざ `struct` を定義する必要はないので、`get_image` メソッドの引数に直接書きます。
+これだけであれば、わざわざ `struct` を定義する必要はないので、`get_image` メソッドの引数に直接書きましょうか。
 
 ```rust
 pub async fn get_image(&self, image_id: &str) -> Result<(), ()> {
@@ -582,7 +585,7 @@ impl GyazoClient {
 ```
 `GyazoClientOptions` という構造体を作り、`base_url` と `upload_url` を追加しました。
 テスト時には、`base_url` と `upload_url` をモックサーバーのエンドポイントに変更します。
-実際に `GyazoClient` を使う時、いちいち、`None` を定義するのはあまりいけていないので、`Default` トレイトを実装して、デフォルト値を設定できるようにしました。
+実際に `GyazoClient` を使う時、いちいち、`None` を定義するのはいけていないので、`Default` トレイトを実装して、デフォルト値を設定できるようにしました。
 
 ```rust
 let gyazo_client = GyazoClient::new("YOUR_ACCESS_TOKEN".to_string(), ..Default::default());

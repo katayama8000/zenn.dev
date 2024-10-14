@@ -1,23 +1,21 @@
 # Zenn CLI
+[📘 How to use](https://zenn.dev/zenn/articles/zenn-cli-guide)
 
-- [📘 How to use](https://zenn.dev/zenn/articles/zenn-cli-guide)"# zenn-content"
 
----
-
-make article
+make an article
 
 ```bash
- npx zenn new:article
+$ yarn article
 ```
 
-make book
+make a book
 
 ```bash
- npx zenn new:book
+$ yarn book
 ```
 
 try preview
 
 ```bash
-npx zenn preview
+$ yarn dev
 ```

@@ -1,9 +1,9 @@
 ---
-title: "物忘れが本当にひどいので、アプリを作って解決することにした備忘録 vol1"
-emoji: "🦍"
-type: "tech" # tech: 技術記事 / idea: アイデア
+title: "靴をなくしたので、アプリを作ることにした vol1"
+emoji: "🦕"
+type: "idea" # tech: 技術記事 / idea: アイデア
 topics: ["ReactNative", "Expo", "Deno", "TypeScript"]
-published: false
+published: true
 ---
 
 ## 靴をなくした
@@ -32,7 +32,7 @@ https://zenn.dev/doctormate/articles/app-for-wife34ixb5s
 
 全 5 回くらいで終わったらいいな。
 
-## 今回の目標はPush通知定期実行の技術調査
+## 今回の目標: Push通知定期実行の技術調査
 調査が必要なところは定期実行の間隔をユーザーに決めさせる方法である。Push 通知の方法や、ネイティブアプリの作り方は問題ない。過去に実装したことがある。
 
 通常、定期実行は cron を使えば良い。しかし、この定期実行の間隔をユーザーに決めさせたい。重要なものは 1 時間おきに。そうれほどでもないものは 3 時間おきになど。あとは夜に通知しないようにしたい。イメージは旅行中にユーザーが設定した間隔で、「◯◯さん、財布無くしていないですか」と通知が来る感じだ。もちろん旅行中だけ有効にしたい。
@@ -135,6 +135,7 @@ Deno.cron("Push notification", "* * * * *", async () => {
 順調にいきすぎている。もう半分くらい終わった気分だ。
 次回は、DB or ユーザーが設定した間隔で通知を送る方法を調査する。
 
+またね:)
 ## References
 https://deno.com/blog/cron
 https://vercel.com/docs/cron-jobs/usage-and-pricing

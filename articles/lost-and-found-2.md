@@ -1,6 +1,6 @@
 ---
 title: "靴をなくしたので、アプリを作ることにした vol2"
-emoji: "🦕"
+emoji: "🐈"
 type: "idea" # tech: 技術記事 / idea: アイデア
 topics: ["ReactNative", "Expo", "Deno", "TypeScript"]
 published: false

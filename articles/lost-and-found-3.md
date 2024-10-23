@@ -26,4 +26,26 @@ published: false
 
 ## 今回の目標: 通知を受け取る & デザインの仮作成
 ### 通知を受け取る
+ここも公式ドキュメントに沿って進めていくだけだ。
+https://docs.expo.dev/push-notifications/push-notifications-setup/
+割とめんどくさい。
+
+とても簡単に言うと、
+1. push token を取得する
+2. その token を Expo の　Server に登録する
+3. その token を API のリクエストに乗せて送る
+4. Android は Firebase の FCM 経由で通知が送られる
+という流れだ。
+おそらく、Expo がネイティブの機能をラップしてくれているのだが、それでもめんどくさい。
+作業するだけなので、特に問題なく完了。
+https://github.com/katayama8000/lost-and-found-client/pull/3
+
 ### デザインの仮作成
+画面はとりあえず２つだけでいい。ホーム画面と登録画面のみ。
+わざわざ Figma で作るのも面倒なので、コードで書く。
+
+|![app1](/images/lost-and-found/UI1.png =250x)|![app2](/images/lost-and-found/UI2.png =250x)|
+|---|---|
+
+とっても雑だけど、とりあえずこれでいい。
+あとは、Push 通知がを受け取った時のモーダルである。

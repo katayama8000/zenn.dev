@@ -1,5 +1,5 @@
 ---
-title: "靴をなくしたので、アプリを作ることにした vol2"
+title: "靴をなくしたので、アプリを作ることにした vol2 配信駆動開発"
 emoji: "🐈"
 type: "idea" # tech: 技術記事 / idea: アイデア
 topics: ["ReactNative", "Expo", "Deno", "TypeScript"]

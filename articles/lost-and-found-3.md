@@ -3,7 +3,7 @@ title: "靴をなくしたので、アプリを作ることにした vol3 それ
 emoji: "🐈"
 type: "idea" # tech: 技術記事 / idea: アイデア
 topics: ["ReactNative", "Expo", "Deno", "TypeScript"]
-published: false
+published: true
 ---
 
 ## それ、LINEでできるじゃん
@@ -29,7 +29,7 @@ published: false
 公式ドキュメントに沿って進めていくだけだ。
 割とめんどくさい。
 
-とても簡単に言うと、
+簡単に言うと、
 1. push token を取得する
 2. その token を Expo の Server に登録する
 3. その token を API のリクエストに乗せて送る
@@ -59,7 +59,6 @@ https://github.com/katayama8000/lost-and-found-client/pull/3
 async function sendPushNotification(expoPushToken: string) {
 	const message = {
 		to: expoPushToken,
-		sound: "default",
 		title: "パスポート",
 		body: "パスポートを持っていますか？",
 		data: { ids: ids },
@@ -81,7 +80,7 @@ async function sendPushNotification(expoPushToken: string) {
 
 モーダルのイメージは下記のような感じ。
 
-![modal](/images/lost-and-found/UI1.png =250x)
+![modal](/images/lost-and-found/UI3.jpg =250x)
 
 通知が送られてきたら、このモーダルが表示される。僕はこの画面を見たら、大事なものを無くしていないか、確認することになるだろう。実質このアプリの役割はここにある。
 

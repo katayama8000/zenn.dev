@@ -6,6 +6,10 @@ topics: ["ReactNative", "Expo", "Deno", "TypeScript"]
 published: true
 ---
 
+## 前回の記事
+前回の記事はこちら。
+https://zenn.dev/tattu/articles/lost-and-found-2
+
 ## それ、LINEでできるじゃん
 嫁が、旅行から帰ってきて、アプリを作ることを伝えた。「それ良いけど、LINEのリマインくんでできるよ」と言われた。
 ...

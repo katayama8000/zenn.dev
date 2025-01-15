@@ -5,6 +5,7 @@ type: 'idea' # tech: 技術記事 / idea: アイデア
 topics: ['jsr', 'npm', 'github', 'scrapbox']
 published: true
 published_at: 2024-12-24 12:00
+publication_name: 'doctormate'
 ---
 
 ## 僕が体験した心地の良いストレス

@@ -49,4 +49,39 @@ CQRS の利点は、書き込みと読み取りの責任を分離することで
 前回と同様、大学がサークルを管理するシステムを作成します。
 簡単のため、今回のシステムは、サークル名とサークルの許容人数を管理するシステムとします。
 
-##
+## 依存関係
+
+```mermaid
+graph TD
+    domain[domain]
+    command[command]
+    query[query]
+    infrastructure[infrastructure]
+    api[api]
+    main[main]
+
+    command --> domain
+    query --> domain
+    infrastructure --> domain
+    api --> domain
+    api --> command
+    api --> query
+    main --> domain
+    main --> command
+    main --> query
+    main --> infrastructure
+    main --> api
+```
+
+domain は どこからにも依存しないようにします。
+command と query は domain に依存します。
+infrastructure は domain に依存しますが、command と query には依存しません。
+
+各 crate をレイヤードアーキテクチャに当てはめると以下になります。
+
+- domain: ドメイン層
+- command: アプリケーション層
+- query: アプリケーション層
+- infrastructure: インフラ層
+- api: プレゼンテーション層
+- main: プレゼンテーション層

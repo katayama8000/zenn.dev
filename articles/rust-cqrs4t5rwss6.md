@@ -37,12 +37,10 @@ CQRS (Command Query Responsibility Segregation) は、コマンドとクエリ�
 ![cqrs](/images/rust-cqrs/image1.png)
 
 書き込み用の DB と読み取り用の DB を分け、何かしらの方法で同期します。
-CQRS の利点は、書き込みと読み取りの責任を分離することで、システムのスケーラビリティとパフォーマンスを向上させることができる点です。
+CQRS の利点は、書き込みと読み取りの責任を分離することで、システムのスケーラビリティを向上させることができる点です。
 
 また、今回は、イベントソーシングを併用します。
 イベントソーシングは、状態の変更をイベントとして保存し、そのイベントを元に状態を再構築するアーキテクチャスタイルです。
-
-後程コード例と共に説明します。
 
 ## 作成するシステム
 
@@ -283,7 +281,6 @@ pub trait CircleRepositoryInterface: Send + Sync {
     async fn find_by_id(&self, circle_id: &CircleId) -> Result<Circle, Error>;
     async fn store(
         &self,
-        current_version: Option<Version>,
         events: Vec<crate::aggregate::circle::event::CircleEvent>,
     ) -> Result<(), Error>;
 }
@@ -374,13 +371,14 @@ async fn store(
    |football|20|CircleCreated|1|
    |football|30|CircleUpdated|2|
 3. 更新
-   | name | capacity | event_type | version |
-   | -------- | -------- |----------| ------|
-   | football | 20 | CircleCreated|1|
-   | football | 30 | CircleUpdated|2|
-   | baseball | 40 | CircleUpdated|3|
 
-上の図を見てわかるように、ステートソーシングでは、ユーザーが行った操作の履歴が残りませんが、イベントソーシングでは、ユーザーが行った操作の履歴が残ります。このサークルはもと football circle だったのに、途中で baseball circle に変わった奇妙なサークルがということがバレてしまいますね！
+   | name     | capacity | event_type    | version |
+   | -------- | -------- | ------------- | ------- |
+   | football | 20       | CircleCreated | 1       |
+   | football | 30       | CircleUpdated | 2       |
+   | baseball | 40       | CircleUpdated | 3       |
+
+上の図を見てわかるように、ステートソーシングでは、ユーザーが行った操作の履歴が残りませんが、イベントソーシングでは、ユーザーが行った操作の履歴が残ります。このサークルはもともと football circle だったのに、途中で baseball circle に変わった、奇妙なサークルがということがバレてしまいますね！
 
 次に、`find_by_id` メソッドを実装します。
 
@@ -476,7 +474,7 @@ pub async fn handle(
     }
 
     circle_repository
-        .store(Some(version), vec![event])
+        .store(vec![event])
         .await
         .map_err(|_| Error::Circle)?;
 
@@ -485,3 +483,8 @@ pub async fn handle(
     })
 }
 ```
+
+先ほど実装した、メソッドを使って、イベントを再生して、集約を構築します。
+その後、`update` メソッドを使用して、集約を更新とイベントを発行します。
+最後に、発行したイベントを DB に保存します。
+簡単ですね。

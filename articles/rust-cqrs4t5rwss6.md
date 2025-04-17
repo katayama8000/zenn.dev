@@ -4,6 +4,8 @@ emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: [Rust, axum, ddd, cqrs, eventSourcing]
 published: false
+# published_at: 2024-02-29 12:30
+publication_name: 'doctormate'
 ---
 
 ## はじめに

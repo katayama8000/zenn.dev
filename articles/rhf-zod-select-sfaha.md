@@ -2,7 +2,7 @@
 title: 'React Hook Form + zodでselectフォームを作る際のはまりどころ'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
-topics: ['react', 'react-hook-form', 'zod', 'typescript', 'javascript']
+topics: ['react', 'reactHookForm', 'zod', 'typescript', 'javascript']
 published: true
 ---
 
@@ -95,4 +95,4 @@ const schema = z.object({
 ## まとめ
 
 RHF と zod を使って select フォームを作る際には、number へのキャストが必要なことがわかりました。
-RHF にはハマりどころが多いので、理解しながらうまく付き合っていきたいですね！
+RHF にはハマりどころが多いので、理解しながらうまく付き合っていきたいですね。

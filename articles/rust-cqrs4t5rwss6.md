@@ -1,5 +1,5 @@
 ---
-title: 'RustとDDDとCQRSとEvent-SourcingでAPIサーバーを構築する'
+title: 'RustとCQRSとEvent-SourcingでAPIサーバーを構築する'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: [Rust, axum, ddd, cqrs, eventSourcing]
@@ -84,7 +84,35 @@ infrastructure は domain に依存しますが、command と query には依存
 - api: プレゼンテーション層
 - main: プレゼンテーション層
 
-## いざ、実装
+## DB のスキーマ
+
+今回は、CQRS を用いて実装するため、コマンド用の DB とクエリ用の DB を分けます。
+
+### コマンド用 DB (circle_events)
+
+```sql
+CREATE TABLE circle_events (
+    id CHAR(36) PRIMARY KEY,                -- イベントID（UUID）
+    circle_id CHAR(36) NOT NULL,            -- 集約ID（Circle ID）
+    version INT NOT NULL,                   -- バージョン（楽観ロックに使用）
+    event_type VARCHAR(100) NOT NULL,       -- イベント名（例: CircleCreated）
+    payload JSON NOT NULL,                  -- イベント内容（差分 or 全体のスナップショット）
+    occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- イベント発生日時
+);
+```
+
+### クエリ用 DB (circle_projections)
+
+```sql
+CREATE TABLE circle_projections (
+    circle_id CHAR(36) PRIMARY KEY,         -- 集約ID（Circle ID）
+    name VARCHAR(100) NOT NULL,             -- サークル名
+    capacity SMALLINT NOT NULL,             -- 定員
+    version INT NOT NULL,                   -- 最新バージョン
+);
+```
+
+## コマンド側の実装
 
 ### domain crate
 
@@ -484,7 +512,115 @@ pub async fn handle(
 }
 ```
 
-先ほど実装した、メソッドを使って、イベントを再生して、集約を構築します。
+先ほど実装した、`find_by_id` メソッドを使って、イベントを再生して、集約を構築します。
 その後、`update` メソッドを使用して、集約を更新とイベントを発行します。
-最後に、発行したイベントを DB に保存します。
+最後に、発行したイベントを command 用の DB に保存します。
 簡単ですね。
+
+### main crate & api crate
+
+CQRS や イベントソーシング特有のものではないので、簡単な説明に留めます。
+
+#### main crate
+
+アプリケーションのエントリーポイントであり、依存関係の解決を行います。
+また、ログの初期化や、環境変数の読み込み等も行います。
+
+### api crate
+
+ルーティングの設定や、リクエストの処理を行います。
+また、リクエストのバリデーションや、レスポンスの整形等も行います。
+
+Rust で DI するには一手間必要ですが、興味のある方は、私のリポジトリをのぞいてみてください。
+
+ここまでで、コマンド側の実装は完了です。
+ユーザーが操作するたびに、イベントが発行され、コマンド用の DB に保存されるようになりました。
+
+## クエリ側の実装
+
+CQRS では文字通り、コマンドとクエリを分けます。このリポジトリでは、アプリケーションレイヤーに相当する部分では、crate を `command` crate と `query` crate に分けていますが、`domain` crate や　`infrastructure` crate は分けていません。
+
+読み取り専用の model を作成したり、読み取り専用の interface を作成したりすると、アーキテクチャ的に綺麗になるかもしれません。必ずしも今回私が、実装したものが正というわけではありませんので、参考程度にしてください。
+
+まずは、何らかしらの方法で、コマンド用の DB に保存されたイベントをクエリ用の DB に保存する必要があります。
+例えば、Pub/Sub などのメッセージングシステムを使用して、コマンド用の DB に保存されたイベントをクエリ用の DB に保存することができます。
+DB のトリガーを使用して、コマンド用の DB に保存されたイベントが永続化されたら、API にリクエストを送信して、クエリ用の DB に保存することもできます。
+
+私は今回、最もフィジカルで最もプリミティブで最もフェティッシュな方法で、コマンド用の DB に保存されたイベントをクエリ用の DB に保存することにしました。
+
+```rust
+async fn store(
+    &self,
+    _version: Option<version::Version>,
+    events: Vec<event::CircleEvent>,
+) -> Result<(), anyhow::Error> {
+    if events.is_empty() {
+        tracing::info!("No events to store");
+        return Ok(());
+    }
+
+    let events_for_logging = events.clone();
+
+    {
+        let mut transaction = self.db.begin().await?;
+
+        for event in events {
+            let event_data = CircleEventData::try_from(event.clone())?;
+
+            sqlx::query("INSERT INTO circle_events (circle_id, id, occurred_at, event_type, version, payload) VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(event_data.circle_id.clone())
+            .bind(event_data.id)
+            .bind(event_data.occurred_at)
+            .bind(event_data.event_type.clone())
+            .bind(event_data.version)
+            .bind(event_data.payload.clone())
+            .execute(&mut *transaction)
+            .await.map_err(|e| {
+                eprintln!("Failed to insert circle event: {:?}", e);
+                anyhow::Error::msg("Failed to insert circle event")
+            })?;
+        }
+
+        transaction.commit().await?;
+    }
+
+    {
+        let mut transaction = self.db.begin().await?;
+
+        let first_event = events_for_logging
+            .first()
+            .ok_or_else(|| anyhow::Error::msg("No events found"))?;
+        let mut current_circle = self.find_by_id(&first_event.circle_id).await?;
+        for event in &events_for_logging {
+            current_circle.apply_event(event);
+        }
+        let data = CircleProtectionData::try_from(current_circle.clone())?;
+
+        sqlx::query("REPLACE INTO circle_projections (circle_id, name, capacity, version) VALUES (?, ?, ?, ?)",)
+            .bind(data.circle_id.to_string())
+            .bind(data.name.to_string())
+            .bind(data.capacity)
+            .bind(data.version)
+            .execute(&mut *transaction)
+            .await.map_err(|e| {
+                eprintln!("Failed to update circle projection: {:?}", e);
+                anyhow::Error::msg("Failed to update circle projection")
+            })?;
+
+        transaction.commit().await?;
+    }
+
+    tracing::info!("Stored circle events: {:?}", events_for_logging);
+    Ok(())
+}
+```
+
+イベントをコマンド用の DB に保存した後、クエリ用の DB に保存します。あんまりいい方法ではないですね。サンプルコードなので、今回はこれで進めます。筆者の気力が尽きてしまいました。PR を送っていただければ、レビューをする気力は残っているので、お時間ある方はぜひ。
+
+残りのレイヤーのコードは、コマンド側とさほど変わりませんので、リポジトリを見ていただければと思います。
+
+## まとめ
+
+CQRS とイベントソーシングを用いて、API サーバーを構築する方法を紹介しました。イベントソーシングを導入したら、必ずしも全てイベントソーシングで実装する必要はなく、イベントの履歴が必要な部分だけイベントソーシングを導入し、他の部分はステートソーシングで実装することもできます。アーキテクチャのパターンの一つとして、CQRS とイベントソーシングを用いることができるということを知っていただければと思います。下にあるリポジトリはコンテナ上で動作するようにしているので、実際に動かして、感覚を掴む等、皆さんの理解のお役に立てれば幸いです。(PR 大歓迎です！)
+
+https://github.com/katayama8000/axum-cqrs-rust

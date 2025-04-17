@@ -1,5 +1,5 @@
 ---
-title: 'RustとCQRSとEvent-SourcingでAPIサーバーを構築する'
+title: 'Rust CQRS イベントソーシング で APIサーバー を構築する'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: [Rust, axum, ddd, cqrs, eventSourcing]
@@ -21,7 +21,7 @@ published: false
 - CQRS の基本的な考え方
 - イベントソーシングの基本的な考え方
 
-以前、[Rust と DDD で API サーバーを構築する](https://zenn.dev/doctormate/articles/rust-ddd-7353b79179) 記事を書いたので、DDD を使った API サーバーの構築方法を知りたい方は、そちらを参考にしてください。
+以前、[Rust と DDD で API サーバーを構築する](https://zenn.dev/doctormate/articles/rust-ddd-7353b79179) 記事を書いたので、DDD を使った API サーバーの構築方法を知りたい方は、そちらを参考にしてください。今回はこのリポジトリをもとに、コードを書いています。
 
 https://github.com/katayama8000/axum-ddd-rust
 
@@ -37,7 +37,7 @@ CQRS (Command Query Responsibility Segregation) は、コマンドとクエリ�
 ![cqrs](/images/rust-cqrs/image1.png)
 
 書き込み用の DB と読み取り用の DB を分け、何かしらの方法で同期します。
-CQRS の利点は、書き込みと読み取りの責任を分離することで、システムのスケーラビリティを向上させることができる点です。
+CQRS の利点は、書き込みと読み取りの責任を分離することで、システムのスケーラビリティを向上させることができる点などがあります。
 
 また、今回は、イベントソーシングを併用します。
 イベントソーシングは、状態の変更をイベントとして保存し、そのイベントを元に状態を再構築するアーキテクチャスタイルです。
@@ -71,9 +71,9 @@ graph TD
     main --> api
 ```
 
-domain は どこにも依存しないようにします。
-command と query は domain に依存します。
-infrastructure は domain に依存しますが、command と query には依存しません。
+`domain` は どこにも依存していません。依存関係を逆転させて、`domain` はどこにも依存しないようにします。
+`command` と `query` は `domain` のみに依存します。
+`infrastructure` は `domain` に依存しますが、`command` と `query` には依存しません
 
 各 crate をレイヤードアーキテクチャに当てはめると以下のようになります。
 
@@ -96,7 +96,7 @@ CREATE TABLE circle_events (
     circle_id CHAR(36) NOT NULL,            -- 集約ID（Circle ID）
     version INT NOT NULL,                   -- バージョン（楽観ロックに使用）
     event_type VARCHAR(100) NOT NULL,       -- イベント名（例: CircleCreated）
-    payload JSON NOT NULL,                  -- イベント内容（差分 or 全体のスナップショット）
+    payload JSON NOT NULL,                  -- イベント内容
     occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- イベント発生日時
 );
 ```
@@ -165,10 +165,10 @@ pub struct CircleUpdated {
 }
 ```
 
-今回は、作成と更新のイベントを作成します。他にも、削除やもっと細かい単位のサークル名変更などのイベントを追加してもいいかもしれません。
+今回は、作成と更新用のイベントを作成します。他にも、削除イベントやもっと細かい単位のサークル名変更イベントなどを追加してもいいかもしれません。
 
 この `CircleEvent` は、イベントを一意に識別するための ID と、具体的にどんなイベントが発生したのかを示す `EventData` などを持っています。
-`EventData` は、イベントの種類を示すための enum です。
+`EventData` は、イベントの種類を示すための enum です。イベントが追加されるたびに、この enum に新しいバリアントを追加することができます。
 
 あとは、イベントを作成するメソッドを追加します。
 
@@ -214,7 +214,7 @@ impl CircleEventBuilder {
 }
 ```
 
-私は、専用のメソッドを追加しましたが、ここは好みの問題なので、違う方法でイベントを作成しても問題ありません。
+私は、専用のメソッドを追加しましたが、ここは好みの問題なので、違う方法でイベントを構築しても問題ありません。
 
 次に、集約に `create` メソッドを追加します。
 
@@ -281,6 +281,7 @@ pub fn apply_event(&mut self, event: &CircleEvent) {
 
 ```
 
+`apply_event` メソッドは、イベントを適用して集約の状態を更新します。
 あとは、イベントを再生するためのメソッドを追加します。
 
 ```rust
@@ -296,7 +297,7 @@ pub fn replay(events: Vec<CircleEvent>) -> Self {
 }
 ```
 
-このメソッドは infrastructure crate で使用しますので、そこで説明します。
+このメソッドは infrastructure crate で使用しますので、後述します。
 
 #### インターフェース
 
@@ -334,11 +335,9 @@ async fn store(
 
     let events_for_logging = events.clone();
 
-    // First transaction for storing events
     {
         let mut transaction = self.db.begin().await?;
 
-        // Store events
         for event in events {
             let event_data = CircleEventData::try_from(event.clone())?;
 
@@ -351,7 +350,6 @@ async fn store(
             .bind(event_data.payload.clone())
             .execute(&mut *transaction)
             .await.map_err(|e| {
-                eprintln!("Failed to insert circle event: {:?}", e);
                 anyhow::Error::msg("Failed to insert circle event")
             })?;
         }
@@ -369,23 +367,22 @@ async fn store(
 
 例えば、ユーザーが、作成 -> 更新 -> 更新 操作を行った場合、ステートソーシングでは、DB に保存されるのは、最新の状態のみです。対して、イベントソーシングでは、ユーザーが行った操作の履歴が DB に保存されます。
 
-- ステートソーシング
+- ステートソーシングの場合
 
 1. 作成
    | name | capacity |
-   |------|----------|
-   |football|20|
+   | -------- | -------- |
+   | football | 20 |
 
 2. 更新
    | name | capacity |
-   |------|----------|
-   |football|30|
+   | -------- | -------- |
+   | football | 30 |
 
 3. 更新
-
-   | name     | capacity |
+   | name | capacity |
    | -------- | -------- |
-   | baseball | 40       |
+   | baseball | 40 |
 
 - イベントソーシング
 
@@ -399,24 +396,21 @@ async fn store(
    |football|20|CircleCreated|1|
    |football|30|CircleUpdated|2|
 3. 更新
-
-   | name     | capacity | event_type    | version |
+   | name | capacity | event_type | version |
    | -------- | -------- | ------------- | ------- |
-   | football | 20       | CircleCreated | 1       |
-   | football | 30       | CircleUpdated | 2       |
-   | baseball | 40       | CircleUpdated | 3       |
+   | football | 20 | CircleCreated | 1 |
+   | football | 30 | CircleUpdated | 2 |
+   | baseball | 40 | CircleUpdated | 3 |
 
-上の図を見てわかるように、ステートソーシングでは、ユーザーが行った操作の履歴が残りませんが、イベントソーシングでは、ユーザーが行った操作の履歴が残ります。このサークルはもともと football circle だったのに、途中で baseball circle に変わった、奇妙なサークルがということがバレてしまいますね！
+上の図を見てわかるように、ステートソーシングでは、ユーザーが行った操作の履歴が残りませんが、イベントソーシングでは、ユーザーが行った操作の履歴が残ります。このサークルはもともと football サークル だったのに、途中で baseball サークル に変わった、奇妙なサークルがということがバレてしまいますね！
 
 次に、`find_by_id` メソッドを実装します。
 
 ```rust
 async fn find_by_id(&self, circle_id: &CircleId) -> Result<Circle, anyhow::Error> {
-    tracing::info!("find_circle_by_id : {:?}", circle_id);
     let event_query = sqlx::query("SELECT * FROM circle_events WHERE circle_id = ?")
         .bind(circle_id.to_string());
     let event_rows = event_query.fetch_all(&self.db).await.map_err(|e| {
-        eprintln!("Failed to fetch circle events by circle_id: {:?}", e);
         anyhow::Error::msg("Failed to fetch circle events by circle_id")
     })?;
 
@@ -452,7 +446,7 @@ pub fn replay(events: Vec<CircleEvent>) -> Self {
 }
 ```
 
-一番目のイベントは作成イベントのはずなので、そうではない場合、エラーを返します。
+一番目のイベントは作成イベントのはずなので、そうではない場合、パニックします。
 その後、イベントを順番に適用していきます。
 
 これで、集約の状態をイベントから再構築することに成功しました。
@@ -514,7 +508,7 @@ pub async fn handle(
 
 先ほど実装した、`find_by_id` メソッドを使って、イベントを再生して、集約を構築します。
 その後、`update` メソッドを使用して、集約を更新とイベントを発行します。
-最後に、発行したイベントを command 用の DB に保存します。
+最後に、発行したイベントを コマンド用の DB に保存します。
 簡単ですね。
 
 ### main crate & api crate
@@ -524,7 +518,7 @@ CQRS や イベントソーシング特有のものではないので、簡単�
 #### main crate
 
 アプリケーションのエントリーポイントであり、依存関係の解決を行います。
-また、ログの初期化や、環境変数の読み込み等も行います。
+また、ログの設定や、環境変数の読み込み等も行います。
 
 ### api crate
 
@@ -538,11 +532,11 @@ Rust で DI するには一手間必要ですが、興味のある方は、私�
 
 ## クエリ側の実装
 
-CQRS では文字通り、コマンドとクエリを分けます。このリポジトリでは、アプリケーションレイヤーに相当する部分では、crate を `command` crate と `query` crate に分けていますが、`domain` crate や　`infrastructure` crate は分けていません。
+CQRS では文字通り、コマンドとクエリを分けます。このリポジトリでは、アプリケーションレイヤーに相当する部分では、crate を command と query に分けていますが、domain や　 infrastructure は分けていません。
 
 読み取り専用の model を作成したり、読み取り専用の interface を作成したりすると、アーキテクチャ的に綺麗になるかもしれません。必ずしも今回私が、実装したものが正というわけではありませんので、参考程度にしてください。
 
-まずは、何らかしらの方法で、コマンド用の DB に保存されたイベントをクエリ用の DB に保存する必要があります。
+クエリ側では、何らかしらの方法で、コマンド用の DB に保存されたイベントをクエリ用の DB に保存する必要があります。
 例えば、Pub/Sub などのメッセージングシステムを使用して、コマンド用の DB に保存されたイベントをクエリ用の DB に保存することができます。
 DB のトリガーを使用して、コマンド用の DB に保存されたイベントが永続化されたら、API にリクエストを送信して、クエリ用の DB に保存することもできます。
 
@@ -551,7 +545,6 @@ DB のトリガーを使用して、コマンド用の DB に保存されたイ�
 ```rust
 async fn store(
     &self,
-    _version: Option<version::Version>,
     events: Vec<event::CircleEvent>,
 ) -> Result<(), anyhow::Error> {
     if events.is_empty() {
@@ -576,7 +569,6 @@ async fn store(
             .bind(event_data.payload.clone())
             .execute(&mut *transaction)
             .await.map_err(|e| {
-                eprintln!("Failed to insert circle event: {:?}", e);
                 anyhow::Error::msg("Failed to insert circle event")
             })?;
         }
@@ -603,24 +595,21 @@ async fn store(
             .bind(data.version)
             .execute(&mut *transaction)
             .await.map_err(|e| {
-                eprintln!("Failed to update circle projection: {:?}", e);
                 anyhow::Error::msg("Failed to update circle projection")
             })?;
 
         transaction.commit().await?;
     }
-
-    tracing::info!("Stored circle events: {:?}", events_for_logging);
     Ok(())
 }
 ```
 
-イベントをコマンド用の DB に保存した後、クエリ用の DB に保存します。あんまりいい方法ではないですね。サンプルコードなので、今回はこれで進めます。筆者の気力が尽きてしまいました。PR を送っていただければ、レビューをする気力は残っているので、お時間ある方はぜひ。
+イベントをコマンド用の DB に保存した後、クエリ用の DB に保存します。...あんまりいい方法ではないですね。サンプルコードなので、容赦してください。筆者の気力が尽きてしまいました。PR を送っていただければ、レビューをする気力は残っているので、お時間ある方はぜひ。
 
 残りのレイヤーのコードは、コマンド側とさほど変わりませんので、リポジトリを見ていただければと思います。
 
 ## まとめ
 
-CQRS とイベントソーシングを用いて、API サーバーを構築する方法を紹介しました。イベントソーシングを導入したら、必ずしも全てイベントソーシングで実装する必要はなく、イベントの履歴が必要な部分だけイベントソーシングを導入し、他の部分はステートソーシングで実装することもできます。アーキテクチャのパターンの一つとして、CQRS とイベントソーシングを用いることができるということを知っていただければと思います。下にあるリポジトリはコンテナ上で動作するようにしているので、実際に動かして、感覚を掴む等、皆さんの理解のお役に立てれば幸いです。(PR 大歓迎です！)
+CQRS とイベントソーシングを用いて、API サーバーを構築する方法を紹介しました。イベントソーシングを導入したら、必ずしも全てイベントソーシングで実装する必要はなく、イベントの履歴が必要な部分だけイベントソーシングを導入し、他の部分はステートソーシングで実装することもできます。アーキテクチャのパターンの一つとして、CQRS とイベントソーシングを用いることができるということを知っていただければエンジニアとして少し強くなれるのではなかろうかと思います。下にあるリポジトリは Docker コンテナ上で動作するようにしているので、実際に動かして、感覚を掴む等、皆さんの理解のお役に立てれば幸いです。(PR 大歓迎)
 
 https://github.com/katayama8000/axum-cqrs-rust

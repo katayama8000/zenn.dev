@@ -5,7 +5,6 @@ type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: [Rust, axum, ddd, cqrs, eventSourcing]
 published: false
 # published_at: 2024-02-29 12:30
-publication_name: 'doctormate'
 ---
 
 ## はじめに
@@ -20,10 +19,8 @@ publication_name: 'doctormate'
 
 - Rust の基本的な文法
 - DDD の基本的な考え方
-- CQRS の基本的な考え方
-- イベントソーシングの基本的な考え方
 
-以前、[Rust と DDD で API サーバーを構築する](https://zenn.dev/doctormate/articles/rust-ddd-7353b79179) 記事を書いたので、DDD を使った API サーバーの構築方法を知りたい方は、そちらを参考にしてください。今回はこのリポジトリをもとに、コードを書いています。
+以前、[Rust と DDD で API サーバーを構築する](https://zenn.dev/doctormate/articles/rust-ddd-7353b79179) 記事を書いたので、DDD を使った API サーバーの構築方法を知りたい方は、そちらを参考にしてください。今回はそのリポジトリをもとに、コードを書いています。
 
 https://github.com/katayama8000/axum-ddd-rust
 
@@ -34,12 +31,13 @@ https://github.com/katayama8000/axum-ddd-rust
 
 ## CQRS とイベントソーシング
 
-CQRS (Command Query Responsibility Segregation) は、コマンドとクエリの責任を分離するアーキテクチャスタイルです。
+CQRS (Command Query Responsibility Segregation) は、コマンドとクエリの責務を分離するアーキテクチャスタイルです。
 
 ![cqrs](/images/rust-cqrs/image1.png)
 
 書き込み用の DB と読み取り用の DB を分け、何かしらの方法で同期します。
 CQRS の利点は、書き込みと読み取りの責任を分離することで、システムのスケーラビリティを向上させることができる点などがあります。
+例えば、読み取り用の DB では、パフォーマンスを重視してキャッシュデータを作成して、本来であれば N+1 が発生しそうなところでも、キャッシュを利用することでパフォーマンスを向上させることができます。
 
 また、今回は、イベントソーシングを併用します。
 イベントソーシングは、状態の変更をイベントとして保存し、そのイベントを元に状態を再構築するアーキテクチャスタイルです。
@@ -609,6 +607,251 @@ async fn store(
 イベントをコマンド用の DB に保存した後、クエリ用の DB に保存します。...あんまりいい方法ではないですね。サンプルコードなので、容赦してください。筆者の気力が尽きてしまいました。PR を送っていただければ、レビューをする気力は残っているので、お時間ある方はぜひ。
 
 残りのレイヤーのコードは、コマンド側とさほど変わりませんので、リポジトリを見ていただければと思います。
+
+## snapshot
+
+イベントソーシングでは、イベントの数が増えると、イベントをリプレイするのに時間がかかるという問題があります。
+例えば、1000 件のイベントがある場合、全てのイベントをリプレイして、集約の状態を構築する必要があります。
+その問題を解決するために、スナップショットを使用することができます。
+一定の間隔で集約の状態を保存しておき、イベントの数が多くなった場合は、スナップショットから集約の状態を構築することができます。
+
+スナップショット用のテーブルを作成します。
+
+```sql
+CREATE TABLE IF NOT EXISTS circle_snapshots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    circle_id CHAR(36) NOT NULL,
+    version INT NOT NULL,
+    state JSON NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_circle_version (circle_id, version DESC)
+);
+```
+
+スナップショットのデータを永続化する間隔を決めます。今回は、5 件のイベントごとにスナップショットを保存することにします。
+そして、スナップショットを保存と取得するためのメソッドを追加します。
+
+```rust
+const SNAPSHOT_INTERVAL: i32 = 5;
+
+async fn get_latest_snapshot(
+    &self,
+    circle_id: &CircleId,
+) -> Result<Option<(Circle, Version)>, anyhow::Error> {
+    let query = sqlx::query(
+        "SELECT * FROM circle_snapshots WHERE circle_id = ? ORDER BY version DESC LIMIT 1",
+    )
+    .bind(circle_id.to_string());
+
+    let row = match query.fetch_optional(&self.db).await {
+        Ok(Some(row)) => row,
+        Ok(None) => return Ok(None),
+        Err(e) => {
+            tracing::error!("Failed to fetch snapshot: {:?}", e);
+            return Err(anyhow::Error::msg("Failed to fetch circle snapshot"));
+        }
+    };
+
+    let snapshot = CircleSnapshotData::from_row(&row);
+    let circle = snapshot.state.to_circle()?;
+    let version = Version::try_from(snapshot.version)
+        .map_err(|_| anyhow::Error::msg("Failed to convert version from i32"))?;
+
+    Ok(Some((circle, version)))
+}
+
+async fn save_snapshot(&self, circle: &Circle) -> Result<(), anyhow::Error> {
+    let circle_id = circle.id.to_string();
+    let version: i32 = circle.version.try_into().map_err(|_| {
+        tracing::error!("Failed to convert version to i32");
+        anyhow::Error::msg("Failed to convert version to i32")
+    })?;
+    let state = State::from_circle(circle).map_err(|e| {
+        tracing::error!("Failed to convert circle to state: {:?}", e);
+        anyhow::Error::msg("Failed to convert circle to state")
+    })?;
+
+    sqlx::query(
+        "INSERT INTO circle_snapshots (circle_id, version, state)
+            VALUES (?, ?, ?)",
+    )
+    .bind(&circle_id)
+    .bind(version)
+    .bind(&sqlx::types::Json(state)) // Json型に明示的に変換
+    .execute(&self.db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to save snapshot: {:?}", e);
+        anyhow::Error::msg("Failed to save circle snapshot")
+    })?;
+
+    tracing::info!(
+        "Saved snapshot for circle {} at version {}",
+        circle_id,
+        version
+    );
+    Ok(())
+}
+```
+
+上記のメソッドをイベントを保存するメソッドに組み込みます。
+
+```rust
+async fn store(
+    &self,
+    _version: Option<version::Version>,
+    events: Vec<event::CircleEvent>,
+) -> Result<(), anyhow::Error> {
+    if events.is_empty() {
+        tracing::info!("No events to store");
+        return Ok(());
+    }
+
+    let events_for_logging = events.clone();
+
+    {
+        let mut transaction = self.db.begin().await?;
+
+        for event in events {
+            let event_data = CircleEventData::try_from(event.clone())?;
+
+            sqlx::query("INSERT INTO circle_events (circle_id, id, occurred_at, event_type, version, payload) VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(event_data.circle_id.clone())
+            .bind(event_data.id)
+            .bind(event_data.occurred_at)
+            .bind(event_data.event_type.clone())
+            .bind(event_data.version)
+            .bind(event_data.payload.clone())
+            .execute(&mut *transaction)
+            .await.map_err(|e| {
+                eprintln!("Failed to insert circle event: {:?}", e);
+                anyhow::Error::msg("Failed to insert circle event")
+            })?;
+        }
+
+        transaction.commit().await?;
+    }
+
+    {
+        let mut transaction = self.db.begin().await?;
+
+        let first_event = events_for_logging
+            .first()
+            .ok_or_else(|| anyhow::Error::msg("No events found"))?;
+        let mut current_circle = self.find_by_id(&first_event.circle_id).await?;
+
+        for event in &events_for_logging {
+            current_circle.apply_event(event);
+        }
+        let data = CircleProtectionData::try_from(current_circle.clone())?;
+
+        sqlx::query("REPLACE INTO circle_projections (circle_id, name, capacity, version) VALUES (?, ?, ?, ?)",)
+            .bind(data.circle_id.to_string())
+            .bind(data.name.to_string())
+            .bind(data.capacity)
+            .bind(data.version)
+            .execute(&mut *transaction)
+            .await.map_err(|e| {
+                eprintln!("Failed to update circle projection: {:?}", e);
+                anyhow::Error::msg("Failed to update circle projection")
+            })?;
+
+        let version_i32: i32 = current_circle.version.try_into().map_err(|e| {
+            anyhow::Error::msg(format!("Failed to convert version to i32: {:?}", e))
+        })?;
+        if version_i32 % SNAPSHOT_INTERVAL == 0 {
+            // Save snapshot synchronously within the same transaction
+            if let Err(e) = self.save_snapshot(&current_circle).await {
+                tracing::error!("Failed to save snapshot: {:?}", e);
+                return Err(anyhow::Error::msg("Failed to save snapshot"));
+            } else {
+                tracing::info!("Snapshot saved for circle at version {}", version_i32);
+            }
+        }
+
+        transaction.commit().await?;
+    }
+
+    tracing::info!("Stored circle events: {:?}", events_for_logging);
+    Ok(())
+}
+```
+
+イベント 5 件ごとにスナップショットを保存するようになりましたね。
+
+残りは取得時にスナップショットを使用するようにします。
+
+```rust
+async fn find_by_id(&self, circle_id: &CircleId) -> Result<Circle, anyhow::Error> {
+    tracing::info!("find_circle_by_id : {:?}", circle_id);
+
+    // check snapshot
+    if let Ok(Some((mut circle, snapshot_version))) = self.get_latest_snapshot(circle_id).await
+    {
+        tracing::info!(
+            "Found snapshot for circle {:?} at version {:?}",
+            circle_id,
+            snapshot_version
+        );
+
+        let version_i32: i32 = snapshot_version.try_into().map_err(|_| {
+            tracing::error!("Failed to convert version to i32");
+            anyhow::Error::msg("Failed to convert version to i32")
+        })?;
+
+        let event_query = sqlx::query(
+            "SELECT * FROM circle_events WHERE circle_id = ? AND version > ? ORDER BY version ASC"
+        )
+        .bind(circle_id.to_string())
+        .bind(version_i32);
+
+        let event_rows = event_query.fetch_all(&self.db).await.map_err(|e| {
+            tracing::error!("Failed to fetch circle events after snapshot: {:?}", e);
+            anyhow::Error::msg("Failed to fetch circle events after snapshot")
+        })?;
+
+        println!("event_rows: {:?}", event_rows);
+
+        if !event_rows.is_empty() {
+            let events = event_rows
+                .iter()
+                .map(|row| CircleEvent::from_circle_event_data(CircleEventData::from_row(row)))
+                .collect::<Result<Vec<CircleEvent>, _>>()?;
+
+            for event in events {
+                circle.apply_event(&event);
+            }
+        }
+
+        return Ok(circle);
+    }
+
+    let event_query =
+        sqlx::query("SELECT * FROM circle_events WHERE circle_id = ? ORDER BY version ASC")
+            .bind(circle_id.to_string());
+    let event_rows = event_query.fetch_all(&self.db).await.map_err(|e| {
+        eprintln!("Failed to fetch circle events by circle_id: {:?}", e);
+        anyhow::Error::msg("Failed to fetch circle events by circle_id")
+    })?;
+
+    if event_rows.is_empty() {
+        return Err(anyhow::Error::msg("Circle not found"));
+    }
+
+    let event_data = event_rows
+        .iter()
+        .map(|row| CircleEvent::from_circle_event_data(CircleEventData::from_row(row)))
+        .collect::<Result<Vec<CircleEvent>, _>>()?;
+
+    let mut event_data = event_data;
+    event_data.sort_by(|a, b| a.version.cmp(&b.version));
+    let circle = Circle::replay(event_data);
+
+    Ok(circle)
+}
+```
+
+これで、スナップショットが存在する場合は、スナップショットから集約の状態を構築し、スナップショット以降のイベントを適用して、最新の状態を取得します。
 
 ## まとめ
 

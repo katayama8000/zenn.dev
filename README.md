@@ -6,19 +6,16 @@ make an article
 
 ```bash
 $ yarn article
-$ pnpm run article
 ```
 
 make a book
 
 ```bash
 $ yarn book
-$ pnpm run book
 ```
 
 try preview
 
 ```bash
 $ yarn dev
-$ pnpm run dev
 ```

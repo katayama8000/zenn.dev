@@ -3,7 +3,8 @@ title: "エンジニアが英語を学ぶ最適な方法 / 年収2000万越え�
 emoji: "🦍"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["English", "Programming", "Learning", "ReactNative", "Expo"]
-published: false
+published: true
+published_at: 2025-08-11 12:00:00
 ---
 
 :::message

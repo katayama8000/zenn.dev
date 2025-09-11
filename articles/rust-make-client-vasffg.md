@@ -9,7 +9,7 @@ publication_name: 'doctormate'
 ---
 
 ## 初めに
-`Rust SDK` がないサービスは結構あるので、`Rust` を採用した場合に、ライブラリを自作することが多いです。有名なもので言うと、`Firebase` や `Supabase` も 公式の　`Rust SDK` がないです。
+`Rust SDK` がないサービスは結構あるので、`Rust` を採用した場合に、ライブラリを自作することが多いです。有名なもので言うと、`Firebase` や `Supabase` も 公式の `Rust SDK` がないです。
 この記事では、`Rust` で API クライアントを作る手順を紹介します。
 
 ## APIを選ぶ

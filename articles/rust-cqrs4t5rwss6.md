@@ -239,7 +239,7 @@ fn from_created_event(event: CircleEvent) -> Self {
 }
 ```
 
-`create` メソッドは、では、イベントの発行とそのイベントを元に集約の状態を構築します。
+`create` メソッドは、イベントの発行とそのイベントを元に集約の状態を構築します。
 
 同じ容量で、`update` メソッドを作成します。
 

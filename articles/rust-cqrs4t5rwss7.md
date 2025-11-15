@@ -1,5 +1,5 @@
 ---
-title: 'Rust CQRS イベントソーシング で APIサーバー を構築する【New】'
+title: '【New】Rust CQRS イベントソーシング で APIサーバー を構築する'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: [Rust, axum, ddd, cqrs, eventSourcing]
@@ -32,11 +32,34 @@ https://github.com/katayama8000/axum-ddd-rust
 
 CQRS (Command Query Responsibility Segregation) は、コマンドとクエリの責務を分離するアーキテクチャスタイルです。
 
-![cqrs](/images/rust-cqrs/image1.png)
+```mermaid
+flowchart LR
+    subgraph Command_Side[Command Side]
+        UI1[UI / API]
+        CMD[Command]
+        Handler[Command Handler]
+        Agg[Domain Model / Aggregate]
+        Repo1[Write Repository]
+        DB1[(Write Database)]
+    end
+
+    subgraph Query_Side[Query Side]
+        UI2[UI / API]
+        QRY[Query]
+        Reader[Query Handler]
+        Repo2[Read Repository]
+        DB2[(Read Database)]
+    end
+
+    UI1 --> CMD --> Handler --> Agg --> Repo1 --> DB1
+    UI2 --> QRY --> Reader --> Repo2 --> DB2
+
+    DB1 -- Event / Sync --> DB2
+```
 
 書き込み用の DB と読み取り用の DB を分け、何かしらの方法で同期します。
 CQRS の利点は、書き込みと読み取りの責任を分離することで、システムのスケーラビリティを向上させることができる点などがあります。
-例えば、読み取り用の DB では、パフォーマンスを重視してキャッシュデータを作成して、本来であれば N+1 が発生しそうなところでも、キャッシュを利用することでパフォーマンスを向上させることができます。
+例えば、読み取り用の DB で、パフォーマンスを重視してキャッシュデータを作成して、本来であれば N+1 が発生しそうなところでも、キャッシュを利用することでパフォーマンスを向上させることができます。
 
 また、今回は、イベントソーシングを併用します。
 イベントソーシングは、状態の変更をイベントとして保存し、そのイベントを元に状態を再構築するアーキテクチャスタイルです。
@@ -86,8 +109,11 @@ graph TD
 ## DB のスキーマ
 
 今回は、CQRS を用いて実装するため、コマンド用の DB とクエリ用の DB を分けます。
+コマンド用の DB には、MySQL を使用し、クエリ用の DB には、Redis を使用します。
+私は今回、MySQL と Redis を使用しましたが、MySQL のみで CQRS を実装することも可能です。
 
-### コマンド用 DB (circle_events)
+### コマンド用 DB (MySQL)
+#### circle_events
 
 ```sql
 CREATE TABLE circle_events (
@@ -100,15 +126,30 @@ CREATE TABLE circle_events (
 );
 ```
 
-### クエリ用 DB (circle_projections)
-
+#### circle_snapshots
 ```sql
-CREATE TABLE circle_projections (
-    circle_id CHAR(36) PRIMARY KEY,         -- 集約ID（Circle ID）
-    name VARCHAR(100) NOT NULL,             -- サークル名
-    capacity SMALLINT NOT NULL,             -- 定員
-    version INT NOT NULL,                   -- 最新バージョン
+CREATE TABLE IF NOT EXISTS circle_snapshots (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    circle_id CHAR(36) NOT NULL,
+    version INT NOT NULL,
+    state JSON NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_circle_version (circle_id, version DESC)
 );
+```
+
+### クエリ用 DB (Redis)
+```bash
+Key: circle:{circle_id}
+Type: String (JSON)
+
+GET circle:UxrE3ub9wrJIuEAP6TqnH2S62YpTPUj9GCZe
+-> {
+     "id": "UxrE3ub9wrJIuEAP6TqnH2S62YpTPUj9GCZe",
+     "name": "test sync club",
+     "capacity": 8,
+     "version": 1
+   }
 ```
 
 ## コマンド側の実装
@@ -164,7 +205,7 @@ pub struct CircleUpdated {
 }
 ```
 
-今回は、作成と更新用のイベントを作成します。他にも、削除イベントやもっと細かい単位のサークル名変更イベントなどを追加してもいいかもしれません。
+今回は、作成と更新用のイベントを作成します。他にも、削除イベントやもっと細かい単位のサークル名変更イベントなどを追加してもいいかもしれません。ビジネス要件に応じて、イベントを追加すると良いです。
 
 この `CircleEvent` は、イベントを一意に識別するための ID と、具体的にどんなイベントが発生したのかを示す `EventData` などを持っています。
 `EventData` は、イベントの種類を示すための enum です。イベントが追加されるたびに、この enum に新しいバリアントを追加することができます。
@@ -213,8 +254,6 @@ impl CircleEventBuilder {
 }
 ```
 
-私は、専用のメソッドを追加しましたが、ここは好みの問題なので、違う方法でイベントを構築しても問題ありません。
-
 次に、集約に `create` メソッドを追加します。
 
 ```rust
@@ -239,7 +278,7 @@ fn from_created_event(event: CircleEvent) -> Self {
 }
 ```
 
-`create` メソッドは、では、イベントの発行とそのイベントを元に集約の状態を構築します。
+`create` メソッドでは、イベントの発行とそのイベントを元に集約の状態を構築します。
 
 同じ容量で、`update` メソッドを作成します。
 
@@ -314,7 +353,15 @@ pub trait CircleRepositoryInterface: Send + Sync {
 }
 ```
 
-もし、command と query を分けない場合、`find_all` や `find_by_name` などのメソッドが追加される可能性があり、複雑なインターフェースになっていきます。
+クエリ側のインターフェースは、様々な条件で集約を取得するためのメソッドを持ちます。とはいえ、今回は非常にシンプルなシステムなので、単一の集約を取得するためのメソッドと、全ての集約を取得するためのメソッドのみを持ちます。
+
+```rust
+#[async_trait::async_trait]
+pub trait CircleReaderInterface: Send + Sync {
+    async fn get_circle(&self, circle_id: CircleId) -> Result<Option<Circle>, anyhow::Error>;
+    async fn list_circles(&self) -> Result<Vec<Circle>, anyhow::Error>;
+}
+```
 
 ### infrastructure crate
 
@@ -448,7 +495,22 @@ pub fn replay(events: Vec<CircleEvent>) -> Self {
 一番目のイベントは作成イベントのはずなので、そうではない場合、パニックします。
 その後、イベントを順番に適用していきます。
 
-これで、集約の状態をイベントから再構築することに成功しました。
+例えば、以下のようなイベントがあった場合、
+1. CircleCreated { name: "football", capacity: 20 } (version: 1)
+2. CircleUpdated { name: None, capacity: 30 } (version: 2)
+3. CircleUpdated { name: "baseball", capacity: 40 } (version: 3)
+`replay` メソッドは、以下のように動作します。
+
+- 1 番目のイベントを適用
+  - 集約の状態: { id: ..., name: "football", capacity: 20, version: 1 }
+- 2 番目のイベントを適用
+  - 集約の状態: { id: ..., name: "football", capacity: 30, version: 2 }
+- 3 番目のイベントを適用
+  - 集約の状態: { id: ..., name: "baseball", capacity: 40, version: 3 }
+
+これで、`find_by_id` メソッドの実装は完了です。
+
+
 
 ### command crate
 
@@ -529,83 +591,186 @@ Rust で DI するには一手間必要ですが、興味のある方は、私�
 ここまでで、コマンド側の実装は完了です。
 ユーザーが操作するたびに、イベントが発行され、コマンド用の DB に保存されるようになりました。
 
-## クエリ側の実装
+## コマンドとクエリの同期
+CQRS では、コマンド用の DB とクエリ用の DB を同期する必要があります。
 
-CQRS では文字通り、コマンドとクエリを分けます。このリポジトリでは、アプリケーションレイヤーに相当する部分では、crate を command と query に分けていますが、domain や　 infrastructure は分けていません。
+様々な方法がありますが、今回は `EventPublisher` を実装してイベントを非同期で処理するための仕組みを作ります。
 
-読み取り専用の model を作成したり、読み取り専用の interface を作成したりすると、アーキテクチャ的に綺麗になるかもしれません。必ずしも今回私が、実装したものが正というわけではありませんので、参考程度にしてください。
+`EventPublisher` は、MySQL（コマンド側）で発生したイベントを Redis（クエリ側）に非同期で伝播させる責務を持ちます。以下のような trait として定義します：
 
-クエリ側では、何らかしらの方法で、コマンド用の DB に保存されたイベントをクエリ用の DB に保存する必要があります。
-例えば、Pub/Sub などのメッセージングシステムを使用して、コマンド用の DB に保存されたイベントをクエリ用の DB に保存することができます。
-DB のトリガーを使用して、コマンド用の DB に保存されたイベントが永続化されたら、API にリクエストを送信して、クエリ用の DB に保存することもできます。
+```rust
+#[async_trait::async_trait]
+pub trait EventPublisher: Send + Sync + std::fmt::Debug {
+    async fn publish(&self, events: Vec<CircleEvent>) -> Result<()>;
+}
+```
 
-私は今回、最もフィジカルで最もプリミティブで最もフェティッシュな方法で、コマンド用の DB に保存されたイベントをクエリ用の DB に保存することにしました。
+この trait を実装する ChannelEventPublisher は、Tokio の mpsc::unbounded_channel を使用してイベントを送信します。非同期チャンネルを使うことで、コマンド処理をブロックせずにイベントを publish できます。
+
+```rust
+#[derive(Debug)]
+pub struct ChannelEventPublisher {
+    sender: mpsc::UnboundedSender<CircleEvent>,
+}
+
+impl ChannelEventPublisher {
+    pub fn new() -> (Self, mpsc::UnboundedReceiver<CircleEvent>) {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        (Self { sender }, receiver)
+    }
+}
+```
+
+### イベント処理の流れ
+
+1. アプリケーション起動時に、イベントシステムをセットアップします
+
+```rust
+async fn setup_event_system(
+    redis_client: redis::Client,
+    db: sqlx::MySqlPool,
+) -> Arc<dyn EventPublisher> {
+    // Publisher と Receiver を作成
+    let (event_publisher, event_receiver) = ChannelEventPublisher::new();
+    let redis_handler = RedisProjectionHandler::new(redis_client, db);
+    
+    // 別スレッドでイベント処理を開始
+    tokio::spawn(async move {
+        redis_handler.start_processing(event_receiver).await;
+    });
+    
+    Arc::new(event_publisher)
+}
+```
+
+ここでは以下の処理を行っています。
+- ChannelEventPublisher を作成し、sender と receiver を取得
+- RedisProjectionHandler を作成（イベントを受け取り Redis に投影する責務）
+- バックグラウンドタスクとして start_processing を起動
+- EventPublisher を返却して、サーバー起動時に Repository に注入
+
+2. コマンド実行時のイベント発行
+
+CircleRepository でイベントを MySQL に保存した後、EventPublisher を使ってイベントを発行します。
 
 ```rust
 async fn store(
     &self,
+    _version: Option<version::Version>,
     events: Vec<event::CircleEvent>,
 ) -> Result<(), anyhow::Error> {
-    if events.is_empty() {
-        tracing::info!("No events to store");
-        return Ok(());
-    }
-
-    let events_for_logging = events.clone();
-
+    // Step 1: Store events in MySQL (source of truth)
     {
         let mut transaction = self.db.begin().await?;
-
         for event in events {
-            let event_data = CircleEventData::try_from(event.clone())?;
-
-            sqlx::query("INSERT INTO circle_events (circle_id, id, occurred_at, event_type, version, payload) VALUES (?, ?, ?, ?, ?, ?)")
-            .bind(event_data.circle_id.clone())
-            .bind(event_data.id)
-            .bind(event_data.occurred_at)
-            .bind(event_data.event_type.clone())
-            .bind(event_data.version)
-            .bind(event_data.payload.clone())
-            .execute(&mut *transaction)
-            .await.map_err(|e| {
-                anyhow::Error::msg("Failed to insert circle event")
-            })?;
+            // MySQL へイベントを保存
+            // ...
         }
-
         transaction.commit().await?;
     }
 
-    {
-        let mut transaction = self.db.begin().await?;
-
-        let first_event = events_for_logging
-            .first()
-            .ok_or_else(|| anyhow::Error::msg("No events found"))?;
-        let mut current_circle = self.find_by_id(&first_event.circle_id).await?;
-        for event in &events_for_logging {
-            current_circle.apply_event(event);
-        }
-        let data = CircleProtectionData::try_from(current_circle.clone())?;
-
-        sqlx::query("REPLACE INTO circle_projections (circle_id, name, capacity, version) VALUES (?, ?, ?, ?)",)
-            .bind(data.circle_id.to_string())
-            .bind(data.name.to_string())
-            .bind(data.capacity)
-            .bind(data.version)
-            .execute(&mut *transaction)
-            .await.map_err(|e| {
-                anyhow::Error::msg("Failed to update circle projection")
-            })?;
-
-        transaction.commit().await?;
+    // Step 2: Publish events for Redis update
+    if let Err(e) = self.event_publisher.publish(events_for_logging.clone()).await {
+        tracing::error!("Failed to publish events: {:?}", e);
     }
+
     Ok(())
 }
 ```
 
-イベントをコマンド用の DB に保存した後、クエリ用の DB に保存します。...あんまりいい方法ではないですね。サンプルコードなので、容赦してください。筆者の気力が尽きてしまいました。PR を送っていただければ、レビューをする気力は残っているので、お時間ある方はぜひ。
+3. バックグラウンドでの投影処理
 
-残りのレイヤーのコードは、コマンド側とさほど変わりませんので、リポジトリを見ていただければと思います。
+RedisProjectionHandler は、チャンネルからイベントを受け取り、Redis に投影します。
+
+```rust
+pub async fn handle_event(&self, event: CircleEvent) -> Result<()> {
+    // 1. MySQL から最新のイベントを取得して Circle を再構築
+    let circle = self.rebuild_circle_from_events(&event.circle_id).await?;
+    
+    // 2. Redis に保存
+    self.save_circle_to_redis(&circle).await?;
+    
+    Ok(())
+}
+```
+
+### コマンド実行シーケンス
+同期の流れをシーケンス図で表すと以下のようになります。
+
+```mermaid
+sequenceDiagram
+    participant API as API Handler
+    participant CH as CommandHandler
+    participant CR as CircleRepository
+    participant DB as MySQL
+    participant EP as EventPublisher
+    participant Chan as mpsc::Channel
+    participant RH as RedisProjectionHandler
+    participant Redis as Redis
+
+    Note over API, Redis: Circle作成リクエスト処理
+
+    API->>CH: create_circle(input)
+    CH->>CR: store(events)
+    
+    Note over CR, DB: MySQL Transaction
+    CR->>DB: BEGIN
+    CR->>DB: INSERT INTO circle_events
+    DB-->>CR: SUCCESS
+    CR->>DB: COMMIT
+    
+    Note over CR, EP: イベント発行
+    CR->>EP: publish(events)
+    EP->>Chan: send(event)
+    
+    Note over Chan, RH: 非同期処理 (別スレッド)
+    Chan-->>RH: recv(event)
+    
+    CR-->>CH: Success
+    CH-->>API: Output (即座にレスポンス)
+    
+    Note over RH, Redis: バックグラウンド処理
+    RH->>DB: SELECT * FROM circle_events WHERE circle_id = ?
+    DB-->>RH: イベントデータ
+    RH->>RH: Circle::replay(events)
+    RH->>Redis: SET circle:{id} (JSON)
+    RH->>Redis: SADD circles:list {id}
+    Redis-->>RH: SUCCESS
+```
+
+### メリットとデメリット
+#### メリット
+- コマンド処理が高速（Redis の更新を待たない）
+- システムの可用性が向上（Redis 障害時もコマンドは成功）
+- スケーラビリティが高い（イベント処理を並列化可能）
+#### デメリット
+- コマンド実行直後のクエリでは、更新前のデータが返る可能性がある
+
+
+## クエリ側の実装
+
+コマンドがわであれやこれや苦労したので、クエリ側の実装は比較的シンプルです。
+先ほど Redis に保存したデータを取得するだけです。コードは GitHub を参照してください。
+
+### クエリ実行のシーケンス
+```mermaid
+sequenceDiagram
+    participant API as API Handler
+    participant QH as QueryHandler
+    participant CR as CircleReader
+    participant Redis as Redis
+    
+    Note over API, Redis: Circle取得リクエスト処理
+    
+    API->>QH: get_circle(circle_id)
+    QH->>CR: get_circle(circle_id)
+    CR->>Redis: GET circle:{id}
+    Redis-->>CR: JSON データ
+    CR->>CR: deserialize(json)
+    CR-->>QH: Circle オブジェクト
+    QH-->>API: Circle データ
+```
+
 
 ## snapshot
 

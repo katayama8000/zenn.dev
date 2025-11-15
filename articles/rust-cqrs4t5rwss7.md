@@ -1,9 +1,9 @@
 ---
-title: '【New】Rust CQRS イベントソーシング で APIサーバー を構築する'
+title: 'Rust CQRS イベントソーシング で APIサーバー を構築する【改】'
 emoji: '🦍'
 type: 'tech' # tech: 技術記事 / idea: アイデア
 topics: [Rust, axum, ddd, cqrs, eventSourcing]
-published: true
+published: false
 ---
 
 ## はじめに

@@ -95,7 +95,7 @@ graph TD
 
 `domain` は どこにも依存していません。依存関係を逆転させて、`domain` はどこにも依存しないようにします。
 `command` と `query` は `domain` のみに依存します。
-`infrastructure` は `domain` に依存しますが、`command` と `query` には依存しません
+`infrastructure` は `domain` に依存しますが、`command` と `query` には依存しません。
 
 各 crate をレイヤードアーキテクチャに当てはめると以下のようになります。
 

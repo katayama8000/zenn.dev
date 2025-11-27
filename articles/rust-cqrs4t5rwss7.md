@@ -28,7 +28,7 @@ https://adventar.org/calendars/11965
 https://github.com/katayama8000/axum-ddd-rust
 
 :::message
-あくまでも _Rust_ で CQRS イベントソーシングを実装することが目的です。
+あくまでも _Rust_ で CQRS eventSourcing を実装することが目的です。
 基本的な考え方は公式ドキュメントや書籍を参考にすると良いでしょう。
 :::
 

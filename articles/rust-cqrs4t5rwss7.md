@@ -23,11 +23,6 @@ https://adventar.org/calendars/11965
 - イベントソーシング とは何かを知りたい人
 - Rust CQRS イベントソーシングで API を実装したい人
 
-### 説明しないこと
-
-- Rustの基本的な文法
-- DDDの基本的な考え方
-
 以前、[Rust と DDD で API サーバーを構築する](https://zenn.dev/doctormate/articles/rust-ddd-7353b79179) 記事を書いたので、DDD を使った APIサーバーの構築方法を知りたい方は、そちらを参考にしてください。今回はそのリポジトリをもとに、コードを書いています。
 
 https://github.com/katayama8000/axum-ddd-rust

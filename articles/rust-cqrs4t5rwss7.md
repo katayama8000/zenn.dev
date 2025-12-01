@@ -7,7 +7,13 @@ published: true
 published_at: 2025-12-01 12:30
 ---
 
-この記事は、ヌーラボブログリレー2025冬 の1日目として投稿しています。
+![title](/images/rust-cqrs/title.png)
+
+この記事はヌーラボブログリレー2025 冬の1日目として投稿しています
+
+始まりました！ヌーラボブログリレー2025 冬。この後もヌーラバーから様々な記事が投稿される予定ですので、ぜひご覧ください！
+
+https://adventar.org/calendars/11965
 
 ## はじめに
 
@@ -17,17 +23,12 @@ published_at: 2025-12-01 12:30
 - イベントソーシング とは何かを知りたい人
 - Rust CQRS イベントソーシングで API を実装したい人
 
-### 説明しないこと
-
-- Rustの基本的な文法
-- DDDの基本的な考え方
-
 以前、[Rust と DDD で API サーバーを構築する](https://zenn.dev/doctormate/articles/rust-ddd-7353b79179) 記事を書いたので、DDD を使った APIサーバーの構築方法を知りたい方は、そちらを参考にしてください。今回はそのリポジトリをもとに、コードを書いています。
 
 https://github.com/katayama8000/axum-ddd-rust
 
 :::message
-あくまでも _Rust_ で CQRS イベントソーシングを実装することが目的です。
+あくまでも _Rust_ で CQRS EventSourcing を実装することが目的です。
 基本的な考え方は公式ドキュメントや書籍を参考にすると良いでしょう。
 :::
 
@@ -37,7 +38,7 @@ https://github.com/katayama8000/axum-ddd-rust
 
 CQRS（Command and Query Responsibility Segregation）は、システムの操作を「コマンド（状態を変更する操作）」と「クエリ（状態を読み取る操作）」の2つに分離する設計パターンです。
 
-多くの場合、書き込み処理に最適化された**コマンドモデル**と、読み取り処理に最適化された**クエリモデル**（リードモデル）をそれぞれ用意します。これにより、書き込み用のデータベースと読み取り用のデータベースを物理的に分離し、それぞれの要件に合わせて最適化することが可能になります。
+多くの場合、書き込み処理に最適化されたコマンドモデルと、読み取り処理に最適化されたクエリモデル（リードモデル）をそれぞれ用意します。これにより、書き込み用のデータベースと読み取り用のデータベースを物理的に分離し、それぞれの要件に合わせて最適化することが可能になります。
 
 ```mermaid
 flowchart LR
@@ -72,13 +73,13 @@ flowchart LR
 
 #### イベントソーシングとは
 
-イベントソーシングは、アプリケーションの現在の状態を直接保存するのではなく、状態を変更した **「イベント」のシーケンス（履歴）** としてすべてを保存するアーキテクチャスタイルです。現在の状態が必要な場合は、これらのイベントを最初から再生することでいつでも再構築できます。
+イベントソーシングは、アプリケーションの現在の状態を直接保存するのではなく、状態を変更した 「イベント」のシーケンス（履歴）としてすべてを保存するアーキテクチャスタイルです。現在の状態が必要な場合は、これらのイベントを最初から再生することでいつでも再構築できます。
 
 #### CQRSとイベントソーシングの組み合わせ
 
 この2つのパターンは非常に相性が良く、組み合わせて利用されることがよくあります。その場合のデータの流れは以下のようになります。
 
-1.  **コマンドサイド**: コマンドを受け取ると、ビジネスロジックを実行し、結果として一つ以上の**イベント**を生成し、イベントストアに永続化します。これがシステムにおける唯一の信頼できる情報源（Source of Truth）となります。
+1.  **コマンドサイド**: コマンドを受け取ると、ビジネスロジックを実行し、結果としてイベントを生成し、イベントストアに永続化します。これがシステムにおける唯一の信頼できる情報源（Source of Truth）となります。
 2.  **同期**: 生成されたイベントを非同期で購読するプロセス（プロジェクター）が、それを元に**クエリサイド**のリードモデル（読み取り用DB）を構築・更新します。
 3.  **クエリサイド**: ユーザーは、特定の表示要件に合わせて最適化されたリードモデルから高速にデータを取得します。
 
@@ -86,7 +87,7 @@ flowchart LR
 
 ## 作成するシステム
 
-前回と同様、大学がサークルを管理するシステムを作成します。
+大学がサークルを管理するシステムを作成します。
 簡単のため、今回のシステムは、サークル名とサークルの許容人数のみを管理するシステムとします。
 
 ## 各レイヤーの依存関係
@@ -355,7 +356,7 @@ pub fn replay(events: Vec<CircleEvent>) -> Self {
 }
 ```
 
-このメソッドは infrastructure crate で使用しますので、後述します。
+このメソッドは infrastructure crate 等で使用しますので、後述します。
 
 #### インターフェース
 
@@ -399,12 +400,10 @@ async fn store(
         return Ok(());
     }
 
-    let events_for_logging = events.clone();
-
     {
         let mut transaction = self.db.begin().await?;
 
-        for event in events {
+        for event in &events {
             let event_data = CircleEventData::try_from(event.clone())?;
 
             sqlx::query("INSERT INTO circle_events (circle_id, id, occurred_at, event_type, version, payload) VALUES (?, ?, ?, ?, ?, ?)")
@@ -427,13 +426,13 @@ async fn store(
 ```
 
 イベントをコマンド用の DB に保存します。
-ここで今までのステートソーシングとの大きな違いを感じるかもしれません。
+ここでステートソーシングとの大きな違いを感じるかもしれません。
 
 ステートソーシングでは、集約の状態を DB に保存しますが、イベントソーシングでは、イベントを DB に保存します。
 
 例えば、ユーザーが、作成 -> 更新 -> 更新 操作を行った場合、ステートソーシングでは、DB に保存されるのは、最新の状態のみです。対して、イベントソーシングでは、ユーザーが行った操作の履歴が DB に保存されます。
 
-- ステートソーシングの場合
+#### ステートソーシングの場合
 
 1. 作成
    | name | capacity |
@@ -450,7 +449,7 @@ async fn store(
    | -------- | -------- |
    | baseball | 40 |
 
-- イベントソーシング
+#### イベントソーシングの場合
 
 1. 作成
    | name | capacity | event_type | version |
@@ -468,7 +467,7 @@ async fn store(
    | football | 30 | CircleUpdated | 2 |
    | baseball | 40 | CircleUpdated | 3 |
 
-上の図を見てわかるように、ステートソーシングでは、ユーザーが行った操作の履歴が残りませんが、イベントソーシングでは、ユーザーが行った操作の履歴が残ります。このサークルはもともと football サークル だったのに、途中で baseball サークル に変わった、奇妙なサークルということがバレてしまいますね！
+上の図を見てわかるように、ステートソーシングでは、ユーザーが行った操作の履歴が残りませんが、イベントソーシングでは、ユーザーが行った操作の履歴が残ります。このサークルはもともと football サークル だったのに、baseball サークル に変わった、奇妙なサークルということがバレてしまいますね！
 
 次に、`find_by_id` メソッドを実装します。
 
@@ -492,7 +491,7 @@ async fn find_by_id(&self, circle_id: &CircleId) -> Result<Circle, anyhow::Error
 }
 ```
 
-ステートソーシングでは、id に紐づくレコードを取得すれば良いですが、イベントソーシングでは、イベントが全て保存されているので、そう簡単にはいきません。
+ステートソーシングでは、id に紐づくレコードを取得すれば良いですが、イベントソーシングでは、イベントが全て永続化されているので、そう簡単にはいきません。
 
 まずは、circle id に紐づくイベントを全て取得します。
 次に、取得したイベントをバージョン順にソートします。
@@ -529,7 +528,6 @@ pub fn replay(events: Vec<CircleEvent>) -> Self {
   - 集約の状態: { id: ..., name: "baseball", capacity: 40, version: 3 }
 
 これで、`find_by_id` メソッドの実装は完了です。
-
 
 
 ### command crate
@@ -618,28 +616,9 @@ CQRS では、コマンド用の DB とクエリ用の DB を同期する必要�
 
 `EventPublisher` は、MySQL（コマンド側）で発生したイベントを Redis（クエリ側）に非同期で伝播させる責務を持ちます。以下のような trait として定義します：
 
-```rust
-#[async_trait::async_trait]
-pub trait EventPublisher: Send + Sync + std::fmt::Debug {
-    async fn publish(&self, events: Vec<CircleEvent>) -> Result<()>;
-}
-```
-
 この trait を実装する ChannelEventPublisher は、Tokio の mpsc::unbounded_channel を使用してイベントを送信します。非同期チャンネルを使うことで、コマンド処理をブロックせずにイベントを publish できます。
 
-```rust
-#[derive(Debug)]
-pub struct ChannelEventPublisher {
-    sender: mpsc::UnboundedSender<CircleEvent>,
-}
-
-impl ChannelEventPublisher {
-    pub fn new() -> (Self, mpsc::UnboundedReceiver<CircleEvent>) {
-        let (sender, receiver) = mpsc::unbounded_channel();
-        (Self { sender }, receiver)
-    }
-}
-```
+https://github.com/katayama8000/axum-cqrs-rust/blob/main/src/crates/infrastructure/src/event_publisher.rs
 
 ### イベント処理の流れ
 
@@ -758,13 +737,15 @@ sequenceDiagram
     Redis-->>RH: SUCCESS
 ```
 
-### メリットとデメリット
+### mpsc チャンネルを使った非同期イベント伝播のメリット・デメリット
 #### メリット
 - コマンド処理が高速（Redis の更新を待たない）
 - システムの可用性が向上（Redis 障害時もコマンドは成功）
 - スケーラビリティが高い（イベント処理を並列化可能）
 #### デメリット
 - コマンド実行直後のクエリでは、更新前のデータが返る可能性がある
+
+高トラフィックなシステムでは、kafka 等のメッセージキューを使用して、より堅牢なイベント伝播を実現することも検討してください。
 
 
 ## クエリ側の実装
@@ -892,12 +873,10 @@ async fn store(
         return Ok(());
     }
 
-    let events_for_logging = events.clone();
-
     {
         let mut transaction = self.db.begin().await?;
 
-        for event in events {
+        for event in &events {
             let event_data = CircleEventData::try_from(event.clone())?;
 
             sqlx::query("INSERT INTO circle_events (circle_id, id, occurred_at, event_type, version, payload) VALUES (?, ?, ?, ?, ?, ?)")
@@ -917,47 +896,27 @@ async fn store(
         transaction.commit().await?;
     }
 
-    {
-        let mut transaction = self.db.begin().await?;
+    let first_event = events
+        .first()
+        .ok_or_else(|| anyhow::Error::msg("No events found"))?;
+    let mut current_circle = self.find_by_id(&first_event.circle_id).await?;
 
-        let first_event = events_for_logging
-            .first()
-            .ok_or_else(|| anyhow::Error::msg("No events found"))?;
-        let mut current_circle = self.find_by_id(&first_event.circle_id).await?;
-
-        for event in &events_for_logging {
-            current_circle.apply_event(event);
-        }
-        let data = CircleProtectionData::try_from(current_circle.clone())?;
-
-        sqlx::query("REPLACE INTO circle_projections (circle_id, name, capacity, version) VALUES (?, ?, ?, ?)",)
-            .bind(data.circle_id.to_string())
-            .bind(data.name.to_string())
-            .bind(data.capacity)
-            .bind(data.version)
-            .execute(&mut *transaction)
-            .await.map_err(|e| {
-                eprintln!("Failed to update circle projection: {:?}", e);
-                anyhow::Error::msg("Failed to update circle projection")
-            })?;
-
-        let version_i32: i32 = current_circle.version.try_into().map_err(|e| {
-            anyhow::Error::msg(format!("Failed to convert version to i32: {:?}", e))
-        })?;
-        if version_i32 % SNAPSHOT_INTERVAL == 0 {
-            // Save snapshot synchronously within the same transaction
-            if let Err(e) = self.save_snapshot(&current_circle).await {
-                tracing::error!("Failed to save snapshot: {:?}", e);
-                return Err(anyhow::Error::msg("Failed to save snapshot"));
-            } else {
-                tracing::info!("Snapshot saved for circle at version {}", version_i32);
-            }
-        }
-
-        transaction.commit().await?;
+    for event in &events {
+        current_circle.apply_event(event);
     }
 
-    tracing::info!("Stored circle events: {:?}", events_for_logging);
+    // Save snapshot if needed
+    let version_i32: i32 = current_circle.version.try_into().map_err(|e| {
+        anyhow::Error::msg(format!("Failed to convert version to i32: {:?}", e))
+    })?;
+    if version_i32 % SNAPSHOT_INTERVAL == 0 {
+        if let Err(e) = self.save_snapshot(&current_circle).await {
+            tracing::error!("Failed to save snapshot: {:?}", e);
+        } else {
+            tracing::info!("Snapshot saved for circle at version {}", version_i32);
+        }
+    }
+
     Ok(())
 }
 ```
@@ -983,7 +942,6 @@ async fn find_by_id(&self, circle_id: &CircleId) -> Result<Circle, anyhow::Error
             tracing::error!("Failed to convert version to i32");
             anyhow::Error::msg("Failed to convert version to i32")
         })?;
-
         let event_query = sqlx::query(
             "SELECT * FROM circle_events WHERE circle_id = ? AND version > ? ORDER BY version ASC"
         )
@@ -1040,6 +998,6 @@ async fn find_by_id(&self, circle_id: &CircleId) -> Result<Circle, anyhow::Error
 
 ## まとめ
 
-CQRS とイベントソーシングを用いて、API サーバーを構築する方法を紹介しました。イベントソーシングを導入したら、必ずしも全てイベントソーシングで実装する必要はなく、イベントの履歴が必要な部分だけイベントソーシングを導入し、他の部分はステートソーシングで実装することもできます。アーキテクチャのパターンの一つとして、CQRS とイベントソーシングを用いることができるということを知っていただければエンジニアとして少し強くなれるのではなかろうかと思います。下にあるリポジトリは Docker コンテナ上で動作するようにしているので、実際に動かして、感覚を掴む等、皆さんの理解のお役に立てれば幸いです。(PR 大歓迎)
+CQRS とイベントソーシングを用いて、API サーバーを構築する方法を紹介しました。イベントソーシングを導入したら、必ずしも全てイベントソーシングで実装する必要はなく、イベントの履歴が必要な部分だけイベントソーシングを導入し、他の部分はステートソーシングで実装することもできます。アーキテクチャのパターンの一つとして、CQRS とイベントソーシングを用いることができるということを知っていただければエンジニアとして少し強くなれるのではなかろうかと思います。下にあるソースコードは Docker コンテナ上で動作するようにしているので、実際に動かして、感覚を掴む等、皆さんの理解のお役に立てれば幸いです。
 
 https://github.com/katayama8000/axum-cqrs-rust

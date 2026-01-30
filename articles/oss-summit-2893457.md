@@ -3,7 +3,7 @@ title: 'あなたが提供できるインターフェースはあなたが思っ
 emoji: '🦍'
 type: 'idea' # tech: 技術記事 / idea: アイデア
 topics: ['OSS', 'Linux', 'Flutter', 'ReactNative']
-published: false
+published: true
 ---
 
 ## Open Source Summit 2025

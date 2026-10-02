@@ -5,17 +5,17 @@
 make an article
 
 ```bash
-$ yarn article
+$ pnpm article
 ```
 
 make a book
 
 ```bash
-$ yarn book
+$ pnpm book
 ```
 
 try preview
 
 ```bash
-$ yarn dev
+$ pnpm dev
 ```

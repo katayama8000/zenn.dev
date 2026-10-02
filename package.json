@@ -12,7 +12,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "packageManager": "pnpm@11.25.0",
   "dependencies": {
-    "zenn-cli": "^0.1.161"
+    "zenn-cli": "^0.5.4"
   }
 }

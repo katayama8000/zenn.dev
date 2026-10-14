@@ -1,5 +1,5 @@
 ---
-title: "ViteとJavaのテンプレートエンジンを一緒に使う人向けのライブラリVite4jを作成した"
+title: "vite4j is out"
 emoji: "🦍"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["Vite", "Java", "React", "Scala"]

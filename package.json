@@ -15,5 +15,8 @@
   "packageManager": "pnpm@11.25.0",
   "dependencies": {
     "zenn-cli": "^0.5.4"
+  },
+  "engines": {
+    "pnpm": ">=11.25.0"
   }
 }
